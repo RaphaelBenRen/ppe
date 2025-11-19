@@ -32,20 +32,36 @@ const QCMScreen = ({ navigation }) => {
     };
 
     const renderQCM = ({ item }) => (
-        <TouchableOpacity
-            style={styles.qcmCard}
-            onPress={() => navigation.navigate('QCMDetail', { qcmId: item.id, qcmTitle: item.titre })}
-        >
-            <View style={styles.qcmHeader}>
-                <Text style={styles.qcmTitle}>{item.titre}</Text>
-                <View style={[styles.badge, getDifficultyColor(item.difficulte)]}>
-                    <Text style={styles.badgeText}>{item.difficulte}</Text>
+        <View style={styles.qcmCard}>
+            <TouchableOpacity
+                onPress={() => navigation.navigate('QCMDetail', { qcmId: item.id, qcmTitle: item.titre })}
+            >
+                <View style={styles.qcmHeader}>
+                    <Text style={styles.qcmTitle}>{item.titre}</Text>
+                    <View style={[styles.badge, getDifficultyColor(item.difficulte)]}>
+                        <Text style={styles.badgeText}>{item.difficulte}</Text>
+                    </View>
                 </View>
+                <Text style={styles.qcmInfo}>
+                    {item.nombre_questions} questions • Créé le {new Date(item.created_at).toLocaleDateString()}
+                </Text>
+            </TouchableOpacity>
+
+            <View style={styles.qcmActions}>
+                <TouchableOpacity
+                    style={[styles.actionButton, styles.startButton]}
+                    onPress={() => navigation.navigate('QCMDetail', { qcmId: item.id, qcmTitle: item.titre })}
+                >
+                    <Text style={styles.actionButtonText}>▶ Commencer</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                    style={[styles.actionButton, styles.historyButton]}
+                    onPress={() => navigation.navigate('QCMHistory', { qcmId: item.id, qcmTitle: item.titre })}
+                >
+                    <Text style={styles.actionButtonText}>📊 Historique</Text>
+                </TouchableOpacity>
             </View>
-            <Text style={styles.qcmInfo}>
-                {item.nombre_questions} questions • Créé le {new Date(item.created_at).toLocaleDateString()}
-            </Text>
-        </TouchableOpacity>
+        </View>
     );
 
     const getDifficultyColor = (difficulte) => {
@@ -144,6 +160,28 @@ const styles = StyleSheet.create({
     qcmInfo: {
         fontSize: 12,
         color: '#666',
+    },
+    qcmActions: {
+        flexDirection: 'row',
+        marginTop: 12,
+        gap: 10,
+    },
+    actionButton: {
+        flex: 1,
+        paddingVertical: 10,
+        borderRadius: 8,
+        alignItems: 'center',
+    },
+    startButton: {
+        backgroundColor: '#667eea',
+    },
+    historyButton: {
+        backgroundColor: '#2196f3',
+    },
+    actionButtonText: {
+        color: '#fff',
+        fontSize: 13,
+        fontWeight: '600',
     },
     emptyContainer: {
         flex: 1,

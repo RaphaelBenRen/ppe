@@ -64,15 +64,24 @@ const QCMDetailScreen = ({ route, navigation }) => {
         }
     };
 
-    const handleSubmit = () => {
-        let correctCount = 0;
-        qcmData.questions.forEach((q, index) => {
-            if (selectedAnswers[index] === q.correct_answer) {
-                correctCount++;
+    const handleSubmit = async () => {
+        try {
+            // Convertir les réponses au format attendu par le backend
+            const answersArray = Object.keys(selectedAnswers).map(key => selectedAnswers[key]);
+
+            // Envoyer les réponses au backend
+            const response = await qcmAPI.submitQCM(qcmId, answersArray);
+
+            if (response.success) {
+                setScore(response.data.correctAnswers);
+                setShowResults(true);
+            } else {
+                Alert.alert('Erreur', 'Impossible de soumettre le QCM');
             }
-        });
-        setScore(correctCount);
-        setShowResults(true);
+        } catch (error) {
+            console.error('Erreur soumission QCM:', error);
+            Alert.alert('Erreur', error.message || 'Erreur lors de la soumission du QCM');
+        }
     };
 
     const handleRetry = () => {
@@ -174,6 +183,15 @@ const QCMDetailScreen = ({ route, navigation }) => {
                             onPress={handleRetry}
                         >
                             <Text style={styles.actionBtnText}>🔄 Recommencer</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                            style={[styles.actionBtn, styles.historyBtn]}
+                            onPress={() => navigation.navigate('QCMHistory', {
+                                qcmId: qcmId,
+                                qcmTitle: qcmTitle
+                            })}
+                        >
+                            <Text style={styles.actionBtnText}>📊 Voir l'historique</Text>
                         </TouchableOpacity>
                         <TouchableOpacity
                             style={[styles.actionBtn, styles.backBtn]}
@@ -584,6 +602,9 @@ const styles = StyleSheet.create({
     },
     retryBtn: {
         backgroundColor: '#667eea',
+    },
+    historyBtn: {
+        backgroundColor: '#2196f3',
     },
     backBtn: {
         backgroundColor: '#999',

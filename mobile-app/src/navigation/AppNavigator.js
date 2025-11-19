@@ -16,6 +16,8 @@ import FlashcardsScreen from '../screens/FlashcardsScreen';
 import CourseViewerScreen from '../screens/CourseViewerScreen';
 import QCMDetailScreen from '../screens/QCMDetailScreen';
 import FlashcardDetailScreen from '../screens/FlashcardDetailScreen';
+import QCMHistoryScreen from '../screens/QCMHistoryScreen';
+import QCMAttemptDetailScreen from '../screens/QCMAttemptDetailScreen';
 
 const Stack = createStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -90,6 +92,8 @@ const AppNavigator = () => {
                         <Stack.Screen name="CourseViewer" component={CourseViewerScreen} />
                         <Stack.Screen name="QCMDetail" component={QCMDetailScreen} />
                         <Stack.Screen name="FlashcardDetail" component={FlashcardDetailScreen} />
+                        <Stack.Screen name="QCMHistory" component={QCMHistoryScreen} />
+                        <Stack.Screen name="QCMAttemptDetail" component={QCMAttemptDetailScreen} />
                     </React.Fragment>
                 )}
             </Stack.Navigator>

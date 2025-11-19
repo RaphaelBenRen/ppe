@@ -69,6 +69,24 @@ CREATE TABLE IF NOT EXISTS qcms (
     INDEX idx_completed (completed)
 );
 
+-- Table des tentatives de QCM (historique)
+CREATE TABLE IF NOT EXISTS qcm_attempts (
+    id INT PRIMARY KEY AUTO_INCREMENT,
+    qcm_id INT NOT NULL,
+    user_id INT NOT NULL,
+    answers_data JSON NOT NULL, -- Stockage des réponses données
+    score INT NOT NULL,
+    pourcentage DECIMAL(5,2) NOT NULL,
+    nombre_correctes INT NOT NULL,
+    nombre_incorrectes INT NOT NULL,
+    temps_ecoule INT NULL, -- En secondes
+    completed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (qcm_id) REFERENCES qcms(id) ON DELETE CASCADE,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    INDEX idx_qcm_user (qcm_id, user_id),
+    INDEX idx_user_date (user_id, completed_at)
+);
+
 -- Table des flashcards générées
 CREATE TABLE IF NOT EXISTS flashcards (
     id INT PRIMARY KEY AUTO_INCREMENT,

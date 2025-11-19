@@ -214,7 +214,7 @@ router.get('/:id', authMiddleware, async (req, res) => {
 // Route pour soumettre les réponses d'un QCM
 router.post('/:id/submit', authMiddleware, async (req, res) => {
     try {
-        const { answers } = req.body; // { "0": "A", "1": "C", ... }
+        const { answers, tempsEcoule } = req.body; // { "0": "A", "1": "C", ... }
 
         // Récupérer le QCM
         const [qcms] = await pool.query(`
@@ -244,29 +244,54 @@ router.post('/:id/submit', authMiddleware, async (req, res) => {
 
             return {
                 questionIndex: index,
+                question: question.question,
                 userAnswer,
                 correctAnswer: question.correct_answer,
                 isCorrect,
-                explanation: question.explanation
+                explanation: question.explanation,
+                options: question.options
             };
         });
 
-        const score = Math.round((correctAnswers / questions.length) * 100);
+        const incorrectAnswers = questions.length - correctAnswers;
+        const pourcentage = (correctAnswers / questions.length) * 100;
 
-        // Mettre à jour le QCM
-        await pool.query(`
-            UPDATE qcms
-            SET score = ?, completed = TRUE, completed_at = NOW()
-            WHERE id = ?
-        `, [score, req.params.id]);
+        // Sauvegarder cette tentative dans l'historique
+        const [attemptResult] = await pool.query(`
+            INSERT INTO qcm_attempts
+            (qcm_id, user_id, answers_data, score, pourcentage, nombre_correctes, nombre_incorrectes, temps_ecoule)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        `, [
+            req.params.id,
+            req.user.userId,
+            JSON.stringify(results),
+            Math.round(pourcentage),
+            pourcentage,
+            correctAnswers,
+            incorrectAnswers,
+            tempsEcoule || null
+        ]);
+
+        // Mettre à jour le meilleur score du QCM si nécessaire
+        if (!qcm.score || pourcentage > qcm.score) {
+            await pool.query(`
+                UPDATE qcms
+                SET score = ?, completed = TRUE, completed_at = NOW()
+                WHERE id = ?
+            `, [Math.round(pourcentage), req.params.id]);
+        }
 
         res.json({
             success: true,
             data: {
-                score,
+                attemptId: attemptResult.insertId,
+                score: Math.round(pourcentage),
+                pourcentage,
                 correctAnswers,
+                incorrectAnswers,
                 totalQuestions: questions.length,
-                results
+                results,
+                tempsEcoule
             }
         });
 
@@ -275,6 +300,69 @@ router.post('/:id/submit', authMiddleware, async (req, res) => {
         res.status(500).json({
             success: false,
             message: 'Erreur lors de la soumission du QCM'
+        });
+    }
+});
+
+// Route pour récupérer l'historique des tentatives d'un QCM
+router.get('/:id/attempts', authMiddleware, async (req, res) => {
+    try {
+        const [attempts] = await pool.query(`
+            SELECT
+                id,
+                score,
+                pourcentage,
+                nombre_correctes,
+                nombre_incorrectes,
+                temps_ecoule,
+                completed_at
+            FROM qcm_attempts
+            WHERE qcm_id = ? AND user_id = ?
+            ORDER BY completed_at DESC
+        `, [req.params.id, req.user.userId]);
+
+        res.json({
+            success: true,
+            data: attempts
+        });
+
+    } catch (error) {
+        console.error('Erreur récupération historique:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Erreur lors de la récupération de l\'historique'
+        });
+    }
+});
+
+// Route pour récupérer le détail d'une tentative spécifique
+router.get('/:id/attempts/:attemptId', authMiddleware, async (req, res) => {
+    try {
+        const [attempts] = await pool.query(`
+            SELECT * FROM qcm_attempts
+            WHERE id = ? AND qcm_id = ? AND user_id = ?
+        `, [req.params.attemptId, req.params.id, req.user.userId]);
+
+        if (attempts.length === 0) {
+            return res.status(404).json({
+                success: false,
+                message: 'Tentative non trouvée'
+            });
+        }
+
+        const attempt = attempts[0];
+        attempt.answers_data = JSON.parse(attempt.answers_data);
+
+        res.json({
+            success: true,
+            data: attempt
+        });
+
+    } catch (error) {
+        console.error('Erreur récupération tentative:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Erreur lors de la récupération de la tentative'
         });
     }
 });

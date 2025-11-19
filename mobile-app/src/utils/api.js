@@ -134,11 +134,19 @@ export const qcmAPI = {
         return apiRequest(`/qcm/${id}`);
     },
 
-    submitQCM: async (id, answers) => {
+    submitQCM: async (id, answers, tempsEcoule) => {
         return apiRequest(`/qcm/${id}/submit`, {
             method: 'POST',
-            body: JSON.stringify({ answers }),
+            body: JSON.stringify({ answers, tempsEcoule }),
         });
+    },
+
+    getAttempts: async (id) => {
+        return apiRequest(`/qcm/${id}/attempts`);
+    },
+
+    getAttemptDetail: async (id, attemptId) => {
+        return apiRequest(`/qcm/${id}/attempts/${attemptId}`);
     },
 
     deleteQCM: async (id) => {
