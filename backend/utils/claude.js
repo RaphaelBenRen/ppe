@@ -151,7 +151,55 @@ Réponds UNIQUEMENT avec le JSON, sans texte avant ou après.`;
     }
 };
 
+/**
+ * Répond à une question sur un passage de cours
+ */
+const answerQuestion = async (question, context, options = {}) => {
+    const { matiere = '', titre = '' } = options;
+
+    const prompt = `Tu es un assistant pédagogique expert pour l'école d'ingénieurs ECE.
+
+CONTEXTE DU COURS :
+${titre ? `Titre : ${titre}` : ''}
+${matiere ? `Matière : ${matiere}` : ''}
+
+EXTRAIT DU COURS :
+${context}
+
+QUESTION DE L'ÉTUDIANT :
+${question}
+
+CONSIGNES :
+- Réponds de manière claire, pédagogique et concise
+- Base ta réponse UNIQUEMENT sur le contenu fourni ci-dessus
+- Si la réponse n'est pas dans le contexte, indique-le poliment
+- Utilise des exemples du cours si pertinent
+- Adapte ton langage pour un étudiant ingénieur
+
+Réponds directement sans introduction.`;
+
+    try {
+        const openai = getOpenAIClient();
+        const completion = await openai.chat.completions.create({
+            model: 'gpt-4o-mini',
+            messages: [{
+                role: 'user',
+                content: prompt
+            }],
+            temperature: 0.7,
+            max_tokens: 1000
+        });
+
+        return completion.choices[0].message.content;
+
+    } catch (error) {
+        console.error('Erreur réponse question:', error);
+        throw new Error('Erreur lors de la génération de la réponse');
+    }
+};
+
 module.exports = {
     generateQCM,
-    generateFlashcards
+    generateFlashcards,
+    answerQuestion
 };

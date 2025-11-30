@@ -117,6 +117,24 @@ export const coursesAPI = {
             method: 'DELETE',
         });
     },
+
+    askQuestion: async (courseId, data) => {
+        return apiRequest(`/courses/${courseId}/ask`, {
+            method: 'POST',
+            body: JSON.stringify(data),
+        });
+    },
+
+    getHighlights: async (courseId) => {
+        return apiRequest(`/courses/${courseId}/highlights`);
+    },
+
+    saveHighlights: async (courseId, highlights) => {
+        return apiRequest(`/courses/${courseId}/highlights`, {
+            method: 'POST',
+            body: JSON.stringify({ highlights }),
+        });
+    },
 };
 
 // API de QCM

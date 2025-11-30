@@ -1,3 +1,8 @@
+launch :
+cd backend && node server.js
+
+cd mobile-app && npx expo start
+
 # ECE Learning - Application Mobile
 
 Application mobile pour les étudiants de l'ECE permettant de générer des QCMs et flashcards à partir de cours uploadés.

@@ -6,6 +6,7 @@ const fs = require('fs').promises;
 const { supabase } = require('../config/database');
 const authMiddleware = require('../middleware/auth');
 const { parseDocument, cleanText } = require('../utils/documentParser');
+const { answerQuestion } = require('../utils/claude');
 
 // Configuration de Multer pour l'upload
 const storage = multer.diskStorage({
@@ -217,6 +218,140 @@ router.get('/:id/content', authMiddleware, async (req, res) => {
         res.status(500).json({
             success: false,
             message: 'Erreur lors de la lecture du cours: ' + error.message
+        });
+    }
+});
+
+// Route pour récupérer les surlignages d'un cours
+router.get('/:id/highlights', authMiddleware, async (req, res) => {
+    try {
+        const { data: highlights, error } = await supabase
+            .from('course_highlights')
+            .select('*')
+            .eq('course_id', req.params.id)
+            .eq('user_id', req.user.userId)
+            .order('created_at', { ascending: true });
+
+        if (error) throw error;
+
+        res.json({
+            success: true,
+            data: highlights || []
+        });
+
+    } catch (error) {
+        console.error('Erreur récupération surlignages:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Erreur lors de la récupération des surlignages'
+        });
+    }
+});
+
+// Route pour sauvegarder les surlignages d'un cours
+router.post('/:id/highlights', authMiddleware, async (req, res) => {
+    try {
+        const { highlights } = req.body;
+
+        if (!Array.isArray(highlights)) {
+            return res.status(400).json({
+                success: false,
+                message: 'Les surlignages doivent être un tableau'
+            });
+        }
+
+        // Supprimer les anciens surlignages de l'utilisateur pour ce cours
+        const { error: deleteError } = await supabase
+            .from('course_highlights')
+            .delete()
+            .eq('course_id', req.params.id)
+            .eq('user_id', req.user.userId);
+
+        if (deleteError) throw deleteError;
+
+        // Insérer les nouveaux surlignages s'il y en a
+        if (highlights.length > 0) {
+            const highlightsToInsert = highlights.map(h => ({
+                course_id: parseInt(req.params.id),
+                user_id: req.user.userId,
+                text_content: h.text,
+                color: h.color,
+                start_offset: h.startOffset || null,
+                end_offset: h.endOffset || null,
+                page_number: h.pageNumber || 1
+            }));
+
+            const { error: insertError } = await supabase
+                .from('course_highlights')
+                .insert(highlightsToInsert);
+
+            if (insertError) throw insertError;
+        }
+
+        res.json({
+            success: true,
+            message: 'Surlignages sauvegardés'
+        });
+
+    } catch (error) {
+        console.error('Erreur sauvegarde surlignages:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Erreur lors de la sauvegarde des surlignages'
+        });
+    }
+});
+
+// Route pour poser une question à l'IA sur le contenu du cours
+router.post('/:id/ask', authMiddleware, async (req, res) => {
+    try {
+        const { question, context } = req.body;
+
+        if (!question) {
+            return res.status(400).json({
+                success: false,
+                message: 'La question est requise'
+            });
+        }
+
+        // Récupérer les infos du cours
+        const { data: courses, error } = await supabase
+            .from('courses')
+            .select('titre, matiere')
+            .eq('id', req.params.id)
+            .eq('uploaded_by', req.user.userId);
+
+        if (error) throw error;
+
+        if (!courses || courses.length === 0) {
+            return res.status(404).json({
+                success: false,
+                message: 'Cours non trouvé'
+            });
+        }
+
+        const course = courses[0];
+
+        console.log('🤖 Question IA sur le cours:', course.titre);
+        console.log('❓ Question:', question);
+
+        const answer = await answerQuestion(question, context || '', {
+            titre: course.titre,
+            matiere: course.matiere
+        });
+
+        res.json({
+            success: true,
+            data: {
+                answer
+            }
+        });
+
+    } catch (error) {
+        console.error('Erreur question IA:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Erreur lors de la génération de la réponse: ' + error.message
         });
     }
 });
