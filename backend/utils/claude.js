@@ -152,6 +152,55 @@ Réponds UNIQUEMENT avec le JSON, sans texte avant ou après.`;
 };
 
 /**
+ * Extrait le texte d'une image via OCR avec GPT-4o Vision
+ */
+const extractTextFromImage = async (imageBase64, mimeType = 'image/jpeg') => {
+    const prompt = `Tu es un assistant spécialisé dans l'extraction de texte depuis des images de cours et documents académiques.
+
+TÂCHE :
+Extrais TOUT le texte visible dans cette image de manière fidèle et structurée.
+
+CONSIGNES :
+- Retranscris le texte exactement comme il apparaît
+- Conserve la structure (titres, paragraphes, listes, etc.)
+- Si c'est un cours manuscrit, fais de ton mieux pour déchiffrer l'écriture
+- Si c'est un tableau, conserve la structure tabulaire avec des séparateurs
+- Si c'est un schéma ou diagramme, décris-le brièvement puis extrais les textes
+- Pour les formules mathématiques, utilise une notation textuelle claire
+- Si certaines parties sont illisibles, indique [illisible]
+
+FORMAT :
+Retourne uniquement le texte extrait, sans commentaire ni introduction.`;
+
+    try {
+        const openai = getOpenAIClient();
+        const completion = await openai.chat.completions.create({
+            model: 'gpt-4o',
+            messages: [{
+                role: 'user',
+                content: [
+                    { type: 'text', text: prompt },
+                    {
+                        type: 'image_url',
+                        image_url: {
+                            url: `data:${mimeType};base64,${imageBase64}`,
+                            detail: 'high'
+                        }
+                    }
+                ]
+            }],
+            max_tokens: 4000
+        });
+
+        return completion.choices[0].message.content;
+
+    } catch (error) {
+        console.error('Erreur OCR:', error);
+        throw new Error('Erreur lors de l\'extraction du texte: ' + error.message);
+    }
+};
+
+/**
  * Répond à une question sur un passage de cours
  */
 const answerQuestion = async (question, context, options = {}) => {
@@ -201,5 +250,6 @@ Réponds directement sans introduction.`;
 module.exports = {
     generateQCM,
     generateFlashcards,
-    answerQuestion
+    answerQuestion,
+    extractTextFromImage
 };

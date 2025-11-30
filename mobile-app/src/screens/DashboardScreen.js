@@ -287,21 +287,21 @@ const DashboardScreen = ({ navigation }) => {
                     </TouchableOpacity>
                     <TouchableOpacity
                         style={styles.quickAction}
+                        onPress={() => navigation.navigate('OCR')}
+                    >
+                        <View style={[styles.quickActionIcon, { backgroundColor: '#fff5e6' }]}>
+                            <Text style={styles.quickActionIconEmoji}>📷</Text>
+                        </View>
+                        <Text style={styles.quickActionText}>Scanner</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                        style={styles.quickAction}
                         onPress={() => navigation.navigate('QCM')}
                     >
                         <View style={[styles.quickActionIcon, { backgroundColor: '#f0f4f8' }]}>
                             <Text style={[styles.quickActionIconText, { color: '#4a6fa5' }]}>Q</Text>
                         </View>
-                        <Text style={styles.quickActionText}>Mes QCM</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                        style={styles.quickAction}
-                        onPress={() => navigation.navigate('Flashcards')}
-                    >
-                        <View style={[styles.quickActionIcon, { backgroundColor: '#f8f0f4' }]}>
-                            <Text style={[styles.quickActionIconText, { color: '#8b5a6b' }]}>F</Text>
-                        </View>
-                        <Text style={styles.quickActionText}>Flashcards</Text>
+                        <Text style={styles.quickActionText}>QCM</Text>
                     </TouchableOpacity>
                 </View>
 
@@ -623,6 +623,9 @@ const styles = StyleSheet.create({
     quickActionIconText: {
         fontSize: 18,
         fontWeight: '600',
+    },
+    quickActionIconEmoji: {
+        fontSize: 20,
     },
     quickActionText: {
         fontSize: 12,

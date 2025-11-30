@@ -6,7 +6,7 @@ const fs = require('fs').promises;
 const { supabase } = require('../config/database');
 const authMiddleware = require('../middleware/auth');
 const { parseDocument, cleanText } = require('../utils/documentParser');
-const { answerQuestion } = require('../utils/claude');
+const { answerQuestion, extractTextFromImage } = require('../utils/claude');
 
 // Configuration de Multer pour l'upload
 const storage = multer.diskStorage({
@@ -39,6 +39,22 @@ const fileFilter = (req, file, cb) => {
 const upload = multer({
     storage: storage,
     fileFilter: fileFilter
+});
+
+// Configuration multer pour les images OCR
+const imageStorage = multer.memoryStorage();
+const imageFilter = (req, file, cb) => {
+    const allowedTypes = ['image/jpeg', 'image/png', 'image/jpg', 'image/webp'];
+    if (allowedTypes.includes(file.mimetype)) {
+        cb(null, true);
+    } else {
+        cb(new Error('Type d\'image non autorisé. Utilisez JPG, PNG ou WebP.'));
+    }
+};
+const uploadImage = multer({
+    storage: imageStorage,
+    fileFilter: imageFilter,
+    limits: { fileSize: 20 * 1024 * 1024 } // 20MB max
 });
 
 // Route pour uploader un cours
@@ -142,6 +158,111 @@ router.get('/my-courses', authMiddleware, async (req, res) => {
         res.status(500).json({
             success: false,
             message: 'Erreur lors de la récupération des cours'
+        });
+    }
+});
+
+// Route pour extraire le texte d'une image (OCR) - DOIT être avant /:id
+router.post('/ocr', authMiddleware, uploadImage.single('image'), async (req, res) => {
+    console.log('📸 OCR reçu:', req.file ? req.file.originalname : 'Pas d\'image');
+
+    try {
+        if (!req.file) {
+            return res.status(400).json({
+                success: false,
+                message: 'Aucune image fournie'
+            });
+        }
+
+        console.log('🔍 Extraction du texte via GPT-4o Vision...');
+
+        // Convertir en base64
+        const imageBase64 = req.file.buffer.toString('base64');
+        const mimeType = req.file.mimetype;
+
+        // Extraire le texte
+        const extractedText = await extractTextFromImage(imageBase64, mimeType);
+
+        console.log('✅ Texte extrait avec succès');
+
+        res.json({
+            success: true,
+            data: {
+                text: extractedText,
+                imageSize: req.file.size,
+                mimeType: mimeType
+            }
+        });
+
+    } catch (error) {
+        console.error('❌ Erreur OCR:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Erreur lors de l\'extraction du texte: ' + error.message
+        });
+    }
+});
+
+// Route pour uploader un cours depuis une image OCR - DOIT être avant /:id
+router.post('/upload-from-ocr', authMiddleware, async (req, res) => {
+    try {
+        const { titre, description, annee_cible, matiere, type_document, content } = req.body;
+
+        // Validation
+        if (!titre || !annee_cible || !matiere || !type_document || !content) {
+            return res.status(400).json({
+                success: false,
+                message: 'Tous les champs sont requis (titre, annee_cible, matiere, type_document, content)'
+            });
+        }
+
+        console.log('💾 Sauvegarde du cours OCR en BDD...');
+
+        // Créer un fichier texte avec le contenu extrait
+        const uploadDir = path.join(__dirname, '../../uploads');
+        await fs.mkdir(uploadDir, { recursive: true });
+
+        const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+        const filePath = path.join(uploadDir, uniqueSuffix + '.txt');
+        await fs.writeFile(filePath, content, 'utf-8');
+
+        // Sauvegarder dans la base de données
+        const { data: result, error } = await supabase
+            .from('courses')
+            .insert({
+                titre,
+                description: description || 'Cours importé depuis une photo',
+                annee_cible,
+                matiere,
+                type_document,
+                file_path: filePath,
+                file_type: 'txt',
+                uploaded_by: req.user.userId
+            })
+            .select()
+            .single();
+
+        if (error) throw error;
+
+        console.log('✅ Cours OCR sauvegardé avec ID:', result.id);
+
+        res.json({
+            success: true,
+            message: 'Cours créé avec succès depuis la photo !',
+            data: {
+                id: result.id,
+                titre,
+                matiere,
+                annee_cible,
+                type_document
+            }
+        });
+
+    } catch (error) {
+        console.error('❌ Erreur upload OCR:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Erreur lors de la création du cours: ' + error.message
         });
     }
 });

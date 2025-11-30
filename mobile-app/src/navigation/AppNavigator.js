@@ -19,6 +19,7 @@ import FlashcardDetailScreen from '../screens/FlashcardDetailScreen';
 import QCMHistoryScreen from '../screens/QCMHistoryScreen';
 import QCMAttemptDetailScreen from '../screens/QCMAttemptDetailScreen';
 import SettingsScreen from '../screens/SettingsScreen';
+import OCRScreen from '../screens/OCRScreen';
 
 const Stack = createStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -140,6 +141,7 @@ const AppNavigator = () => {
                         <Stack.Screen name="QCMHistory" component={QCMHistoryScreen} />
                         <Stack.Screen name="QCMAttemptDetail" component={QCMAttemptDetailScreen} />
                         <Stack.Screen name="Settings" component={SettingsScreen} />
+                        <Stack.Screen name="OCR" component={OCRScreen} />
                     </React.Fragment>
                 )}
             </Stack.Navigator>

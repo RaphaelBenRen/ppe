@@ -143,6 +143,42 @@ export const coursesAPI = {
             token: token
         };
     },
+
+    // OCR - Extraction de texte depuis une image
+    extractTextFromImage: async (imageUri) => {
+        const token = await AsyncStorage.getItem('token');
+
+        const formData = new FormData();
+        formData.append('image', {
+            uri: imageUri,
+            type: 'image/jpeg',
+            name: 'photo.jpg',
+        });
+
+        const response = await fetch(`${API_URL}/courses/ocr`, {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${token}`,
+            },
+            body: formData,
+        });
+
+        const data = await response.json();
+
+        if (!response.ok) {
+            throw new Error(data.message || 'Erreur lors de l\'extraction du texte');
+        }
+
+        return data;
+    },
+
+    // Créer un cours depuis le texte OCR
+    uploadFromOCR: async (courseData) => {
+        return apiRequest('/courses/upload-from-ocr', {
+            method: 'POST',
+            body: JSON.stringify(courseData),
+        });
+    },
 };
 
 // API de QCM
