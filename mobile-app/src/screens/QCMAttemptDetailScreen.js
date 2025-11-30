@@ -7,6 +7,7 @@ import {
     TouchableOpacity,
     ActivityIndicator,
     Alert,
+    useWindowDimensions,
 } from 'react-native';
 import { qcmAPI } from '../utils/api';
 
@@ -48,7 +49,7 @@ const QCMAttemptDetailScreen = ({ route, navigation }) => {
     if (loading) {
         return (
             <View style={styles.loadingContainer}>
-                <ActivityIndicator size="large" color="#667eea" />
+                <ActivityIndicator size="large" color="#1a1a2e" />
                 <Text style={styles.loadingText}>Chargement du détail...</Text>
             </View>
         );
@@ -186,13 +187,13 @@ const QCMAttemptDetailScreen = ({ route, navigation }) => {
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: '#f5f7fa',
+        backgroundColor: '#f8f9fa',
     },
     loadingContainer: {
         flex: 1,
         justifyContent: 'center',
         alignItems: 'center',
-        backgroundColor: '#f5f7fa',
+        backgroundColor: '#f8f9fa',
     },
     loadingText: {
         marginTop: 15,
@@ -203,7 +204,8 @@ const styles = StyleSheet.create({
         flex: 1,
         justifyContent: 'center',
         alignItems: 'center',
-        backgroundColor: '#f5f7fa',
+        backgroundColor: '#f8f9fa',
+        paddingHorizontal: '5%',
     },
     errorText: {
         fontSize: 16,
@@ -211,7 +213,7 @@ const styles = StyleSheet.create({
         marginBottom: 20,
     },
     retryButton: {
-        backgroundColor: '#667eea',
+        backgroundColor: '#1a1a2e',
         paddingHorizontal: 30,
         paddingVertical: 12,
         borderRadius: 10,
@@ -222,34 +224,37 @@ const styles = StyleSheet.create({
         fontWeight: '600',
     },
     header: {
-        backgroundColor: '#667eea',
-        paddingTop: 60,
-        paddingBottom: 20,
-        paddingHorizontal: 20,
+        backgroundColor: '#f8f9fa',
+        paddingTop: 55,
+        paddingBottom: 15,
+        paddingHorizontal: '5%',
     },
     backButton: {
-        marginBottom: 15,
+        flexDirection: 'row',
+        alignItems: 'center',
+        marginBottom: 10,
     },
     backButtonText: {
-        color: '#fff',
+        color: '#1a1a2e',
         fontSize: 16,
-        fontWeight: '600',
+        fontWeight: '500',
     },
     headerTitle: {
-        fontSize: 24,
-        fontWeight: 'bold',
-        color: '#fff',
+        fontSize: 22,
+        fontWeight: '600',
+        color: '#1a1a2e',
     },
     headerSubtitle: {
         fontSize: 14,
-        color: '#e0e7ff',
-        marginTop: 5,
+        color: '#666',
+        marginTop: 4,
     },
     content: {
         flex: 1,
     },
     contentContainer: {
-        padding: 20,
+        paddingHorizontal: '5%',
+        paddingVertical: 15,
     },
     summaryCard: {
         backgroundColor: '#fff',
@@ -258,10 +263,10 @@ const styles = StyleSheet.create({
         marginBottom: 20,
         alignItems: 'center',
         shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.1,
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.05,
         shadowRadius: 4,
-        elevation: 3,
+        elevation: 2,
     },
     scoreCircle: {
         alignItems: 'center',
@@ -308,7 +313,7 @@ const styles = StyleSheet.create({
     sectionTitle: {
         fontSize: 18,
         fontWeight: '600',
-        color: '#333',
+        color: '#1a1a2e',
         marginBottom: 15,
     },
     answerCard: {
@@ -316,18 +321,15 @@ const styles = StyleSheet.create({
         borderRadius: 12,
         padding: 15,
         marginBottom: 15,
-        borderLeftWidth: 4,
         shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.1,
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.05,
         shadowRadius: 4,
-        elevation: 3,
+        elevation: 2,
     },
     answerCardCorrect: {
-        borderLeftColor: '#4caf50',
     },
     answerCardIncorrect: {
-        borderLeftColor: '#f44336',
     },
     answerHeader: {
         flexDirection: 'row',
@@ -338,7 +340,7 @@ const styles = StyleSheet.create({
     questionNumber: {
         fontSize: 12,
         fontWeight: '600',
-        color: '#667eea',
+        color: '#1a1a2e',
     },
     answerBadge: {
         paddingHorizontal: 10,
@@ -433,8 +435,6 @@ const styles = StyleSheet.create({
         padding: 12,
         backgroundColor: '#e3f2fd',
         borderRadius: 8,
-        borderLeftWidth: 3,
-        borderLeftColor: '#2196f3',
     },
     explanationTitle: {
         fontSize: 12,

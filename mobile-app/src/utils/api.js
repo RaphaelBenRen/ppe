@@ -1,7 +1,9 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 // Configuration de l'API
-const API_URL = 'http://192.168.1.22:5001/api';
+// IMPORTANT: Remplacer par l'adresse IP de votre PC (ipconfig dans le terminal)
+// Votre téléphone et PC doivent être sur le même réseau Wi-Fi
+const API_URL = 'http://192.168.1.78:5001/api';
 
 // Helper pour faire des requêtes API
 const apiRequest = async (endpoint, options = {}) => {

@@ -3,7 +3,7 @@ const router = express.Router();
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs').promises;
-const { pool } = require('../config/database');
+const { supabase } = require('../config/database');
 const authMiddleware = require('../middleware/auth');
 const { parseDocument, cleanText } = require('../utils/documentParser');
 
@@ -38,7 +38,6 @@ const fileFilter = (req, file, cb) => {
 const upload = multer({
     storage: storage,
     fileFilter: fileFilter
-    // Pas de limite de taille
 });
 
 // Route pour uploader un cours
@@ -69,29 +68,31 @@ router.post('/upload', authMiddleware, upload.single('file'), async (req, res) =
 
         console.log('💾 Sauvegarde en BDD...');
 
-        // Sauvegarder dans la base de données SANS parser d'abord
-        const [result] = await pool.query(`
-            INSERT INTO courses
-            (titre, description, annee_cible, matiere, type_document, file_path, file_type, uploaded_by)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-        `, [
-            titre,
-            description || null,
-            annee_cible,
-            matiere,
-            type_document,
-            req.file.path,
-            path.extname(req.file.originalname).substring(1),
-            req.user.userId
-        ]);
+        // Sauvegarder dans la base de données
+        const { data: result, error } = await supabase
+            .from('courses')
+            .insert({
+                titre,
+                description: description || null,
+                annee_cible,
+                matiere,
+                type_document,
+                file_path: req.file.path,
+                file_type: path.extname(req.file.originalname).substring(1),
+                uploaded_by: req.user.userId
+            })
+            .select()
+            .single();
 
-        console.log('✅ Cours sauvegardé avec ID:', result.insertId);
+        if (error) throw error;
+
+        console.log('✅ Cours sauvegardé avec ID:', result.id);
 
         res.json({
             success: true,
             message: 'Cours uploadé avec succès !',
             data: {
-                id: result.insertId,
+                id: result.id,
                 titre,
                 matiere,
                 annee_cible,
@@ -122,24 +123,17 @@ router.post('/upload', authMiddleware, upload.single('file'), async (req, res) =
 // Route pour récupérer tous les cours de l'utilisateur
 router.get('/my-courses', authMiddleware, async (req, res) => {
     try {
-        const [courses] = await pool.query(`
-            SELECT
-                id,
-                titre,
-                description,
-                annee_cible,
-                matiere,
-                type_document,
-                file_type,
-                created_at
-            FROM courses
-            WHERE uploaded_by = ?
-            ORDER BY created_at DESC
-        `, [req.user.userId]);
+        const { data: courses, error } = await supabase
+            .from('courses')
+            .select('id, titre, description, annee_cible, matiere, type_document, file_type, created_at')
+            .eq('uploaded_by', req.user.userId)
+            .order('created_at', { ascending: false });
+
+        if (error) throw error;
 
         res.json({
             success: true,
-            data: courses
+            data: courses || []
         });
 
     } catch (error) {
@@ -154,13 +148,15 @@ router.get('/my-courses', authMiddleware, async (req, res) => {
 // Route pour récupérer un cours spécifique
 router.get('/:id', authMiddleware, async (req, res) => {
     try {
-        const [courses] = await pool.query(`
-            SELECT *
-            FROM courses
-            WHERE id = ? AND uploaded_by = ?
-        `, [req.params.id, req.user.userId]);
+        const { data: courses, error } = await supabase
+            .from('courses')
+            .select('*')
+            .eq('id', req.params.id)
+            .eq('uploaded_by', req.user.userId);
 
-        if (courses.length === 0) {
+        if (error) throw error;
+
+        if (!courses || courses.length === 0) {
             return res.status(404).json({
                 success: false,
                 message: 'Cours non trouvé'
@@ -184,13 +180,15 @@ router.get('/:id', authMiddleware, async (req, res) => {
 // Route pour récupérer le contenu parsé d'un cours
 router.get('/:id/content', authMiddleware, async (req, res) => {
     try {
-        const [courses] = await pool.query(`
-            SELECT file_path, titre, matiere, file_type
-            FROM courses
-            WHERE id = ? AND uploaded_by = ?
-        `, [req.params.id, req.user.userId]);
+        const { data: courses, error } = await supabase
+            .from('courses')
+            .select('file_path, titre, matiere, file_type')
+            .eq('id', req.params.id)
+            .eq('uploaded_by', req.user.userId);
 
-        if (courses.length === 0) {
+        if (error) throw error;
+
+        if (!courses || courses.length === 0) {
             return res.status(404).json({
                 success: false,
                 message: 'Cours non trouvé'
@@ -202,7 +200,6 @@ router.get('/:id/content', authMiddleware, async (req, res) => {
         // Parser le fichier
         console.log('📖 Parsing du cours:', course.titre);
         const content = await parseDocument(course.file_path);
-        // Ne pas nettoyer le contenu pour garder le formatage original
         const cleanedContent = content.trim();
 
         res.json({
@@ -228,13 +225,15 @@ router.get('/:id/content', authMiddleware, async (req, res) => {
 router.delete('/:id', authMiddleware, async (req, res) => {
     try {
         // Récupérer le cours pour obtenir le chemin du fichier
-        const [courses] = await pool.query(`
-            SELECT file_path
-            FROM courses
-            WHERE id = ? AND uploaded_by = ?
-        `, [req.params.id, req.user.userId]);
+        const { data: courses, error: fetchError } = await supabase
+            .from('courses')
+            .select('file_path')
+            .eq('id', req.params.id)
+            .eq('uploaded_by', req.user.userId);
 
-        if (courses.length === 0) {
+        if (fetchError) throw fetchError;
+
+        if (!courses || courses.length === 0) {
             return res.status(404).json({
                 success: false,
                 message: 'Cours non trouvé'
@@ -249,10 +248,13 @@ router.delete('/:id', authMiddleware, async (req, res) => {
         }
 
         // Supprimer de la base de données
-        await pool.query(`
-            DELETE FROM courses
-            WHERE id = ? AND uploaded_by = ?
-        `, [req.params.id, req.user.userId]);
+        const { error: deleteError } = await supabase
+            .from('courses')
+            .delete()
+            .eq('id', req.params.id)
+            .eq('uploaded_by', req.user.userId);
+
+        if (deleteError) throw deleteError;
 
         res.json({
             success: true,

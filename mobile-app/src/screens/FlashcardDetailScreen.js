@@ -7,6 +7,7 @@ import {
     ActivityIndicator,
     Alert,
     Animated,
+    useWindowDimensions,
 } from 'react-native';
 import { flashcardsAPI } from '../utils/api';
 
@@ -17,6 +18,8 @@ const FlashcardDetailScreen = ({ route, navigation }) => {
     const [currentCard, setCurrentCard] = useState(0);
     const [isFlipped, setIsFlipped] = useState(false);
     const [flipAnimation] = useState(new Animated.Value(0));
+    const { width } = useWindowDimensions();
+    const isTablet = width >= 768;
 
     useEffect(() => {
         loadFlashcards();
@@ -82,7 +85,7 @@ const FlashcardDetailScreen = ({ route, navigation }) => {
     if (loading) {
         return (
             <View style={styles.loadingContainer}>
-                <ActivityIndicator size="large" color="#764ba2" />
+                <ActivityIndicator size="large" color="#1a1a2e" />
                 <Text style={styles.loadingText}>Chargement des flashcards...</Text>
             </View>
         );
@@ -205,9 +208,9 @@ const FlashcardDetailScreen = ({ route, navigation }) => {
                             },
                         ]}
                     >
-                        <Text style={styles.cardLabel}>Réponse</Text>
-                        <Text style={styles.cardContent}>{card.back}</Text>
-                        <Text style={styles.tapHint}>👆 Appuyez pour retourner</Text>
+                        <Text style={[styles.cardLabel, styles.cardLabelBack]}>Réponse</Text>
+                        <Text style={[styles.cardContent, styles.cardContentBack]}>{card.back}</Text>
+                        <Text style={[styles.tapHint, styles.tapHintBack]}>👆 Appuyez pour retourner</Text>
                     </Animated.View>
                 </TouchableOpacity>
 
@@ -242,13 +245,13 @@ const FlashcardDetailScreen = ({ route, navigation }) => {
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: '#f5f7fa',
+        backgroundColor: '#f8f9fa',
     },
     loadingContainer: {
         flex: 1,
         justifyContent: 'center',
         alignItems: 'center',
-        backgroundColor: '#f5f7fa',
+        backgroundColor: '#f8f9fa',
     },
     loadingText: {
         marginTop: 15,
@@ -259,8 +262,8 @@ const styles = StyleSheet.create({
         flex: 1,
         justifyContent: 'center',
         alignItems: 'center',
-        backgroundColor: '#f5f7fa',
-        padding: 20,
+        backgroundColor: '#f8f9fa',
+        paddingHorizontal: '5%',
     },
     errorText: {
         fontSize: 16,
@@ -269,7 +272,7 @@ const styles = StyleSheet.create({
         textAlign: 'center',
     },
     retryButton: {
-        backgroundColor: '#764ba2',
+        backgroundColor: '#1a1a2e',
         paddingHorizontal: 30,
         paddingVertical: 12,
         borderRadius: 10,
@@ -280,35 +283,41 @@ const styles = StyleSheet.create({
         fontWeight: '600',
     },
     header: {
-        backgroundColor: '#764ba2',
-        paddingTop: 60,
-        paddingBottom: 20,
-        paddingHorizontal: 20,
+        backgroundColor: '#f8f9fa',
+        paddingTop: 55,
+        paddingBottom: 15,
+        paddingHorizontal: '5%',
     },
     backButton: {
-        marginBottom: 15,
+        flexDirection: 'row',
+        alignItems: 'center',
+        marginBottom: 10,
     },
     backButtonText: {
-        color: '#fff',
+        color: '#1a1a2e',
         fontSize: 16,
-        fontWeight: '600',
+        fontWeight: '500',
     },
     headerTitle: {
-        fontSize: 24,
-        fontWeight: 'bold',
-        color: '#fff',
+        fontSize: 22,
+        fontWeight: '600',
+        color: '#1a1a2e',
     },
     progressBar: {
-        height: 4,
-        backgroundColor: '#e0e0e0',
+        height: 3,
+        backgroundColor: '#e8eaed',
+        marginHorizontal: '5%',
+        borderRadius: 2,
     },
     progressFill: {
         height: '100%',
-        backgroundColor: '#764ba2',
+        backgroundColor: '#1a1a2e',
+        borderRadius: 2,
     },
     content: {
         flex: 1,
-        padding: 20,
+        paddingHorizontal: '5%',
+        paddingVertical: 15,
     },
     cardInfo: {
         flexDirection: 'row',
@@ -319,7 +328,7 @@ const styles = StyleSheet.create({
     cardCounter: {
         fontSize: 16,
         fontWeight: '600',
-        color: '#764ba2',
+        color: '#1a1a2e',
     },
     difficultyBadge: {
         paddingHorizontal: 12,
@@ -350,15 +359,15 @@ const styles = StyleSheet.create({
         width: '100%',
         height: '80%',
         backgroundColor: '#fff',
-        borderRadius: 20,
+        borderRadius: 16,
         padding: 30,
         justifyContent: 'center',
         alignItems: 'center',
         shadowColor: '#000',
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.15,
-        shadowRadius: 8,
-        elevation: 8,
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.08,
+        shadowRadius: 6,
+        elevation: 4,
         backfaceVisibility: 'hidden',
     },
     cardFront: {
@@ -366,14 +375,17 @@ const styles = StyleSheet.create({
     },
     cardBack: {
         position: 'absolute',
-        backgroundColor: '#764ba2',
+        backgroundColor: '#e8eaed',
     },
     cardLabel: {
         fontSize: 14,
         fontWeight: '600',
-        color: '#999',
+        color: '#666',
         marginBottom: 20,
         textTransform: 'uppercase',
+    },
+    cardLabelBack: {
+        color: '#1a1a2e',
     },
     cardContent: {
         fontSize: 20,
@@ -382,19 +394,23 @@ const styles = StyleSheet.create({
         textAlign: 'center',
         lineHeight: 32,
     },
+    cardContentBack: {
+        color: '#1a1a2e',
+    },
     tapHint: {
         position: 'absolute',
         bottom: 30,
         fontSize: 12,
         color: '#999',
     },
+    tapHintBack: {
+        color: '#666',
+    },
     helpText: {
         marginTop: 20,
         padding: 15,
         backgroundColor: '#fff',
         borderRadius: 10,
-        borderLeftWidth: 4,
-        borderLeftColor: '#764ba2',
     },
     helpTextContent: {
         fontSize: 13,
@@ -403,15 +419,14 @@ const styles = StyleSheet.create({
     },
     navigationButtons: {
         flexDirection: 'row',
-        padding: 20,
+        paddingHorizontal: '5%',
+        paddingVertical: 15,
         gap: 10,
-        backgroundColor: '#fff',
-        borderTopWidth: 1,
-        borderTopColor: '#e0e0e0',
+        backgroundColor: '#f8f9fa',
     },
     navButton: {
         flex: 1,
-        backgroundColor: '#764ba2',
+        backgroundColor: '#1a1a2e',
         paddingVertical: 15,
         borderRadius: 10,
         alignItems: 'center',

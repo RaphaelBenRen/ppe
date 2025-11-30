@@ -7,6 +7,7 @@ import {
     TouchableOpacity,
     ActivityIndicator,
     Alert,
+    useWindowDimensions,
 } from 'react-native';
 import { qcmAPI } from '../utils/api';
 
@@ -18,6 +19,8 @@ const QCMDetailScreen = ({ route, navigation }) => {
     const [selectedAnswers, setSelectedAnswers] = useState({});
     const [showResults, setShowResults] = useState(false);
     const [score, setScore] = useState(0);
+    const { width } = useWindowDimensions();
+    const isTablet = width >= 768;
 
     useEffect(() => {
         loadQCM();
@@ -94,7 +97,7 @@ const QCMDetailScreen = ({ route, navigation }) => {
     if (loading) {
         return (
             <View style={styles.loadingContainer}>
-                <ActivityIndicator size="large" color="#667eea" />
+                <ActivityIndicator size="large" color="#1a1a2e" />
                 <Text style={styles.loadingText}>Chargement du QCM...</Text>
             </View>
         );
@@ -313,13 +316,13 @@ const getDifficultyColor = (difficulty) => {
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: '#f5f7fa',
+        backgroundColor: '#f8f9fa',
     },
     loadingContainer: {
         flex: 1,
         justifyContent: 'center',
         alignItems: 'center',
-        backgroundColor: '#f5f7fa',
+        backgroundColor: '#f8f9fa',
     },
     loadingText: {
         marginTop: 15,
@@ -330,8 +333,8 @@ const styles = StyleSheet.create({
         flex: 1,
         justifyContent: 'center',
         alignItems: 'center',
-        backgroundColor: '#f5f7fa',
-        padding: 20,
+        backgroundColor: '#f8f9fa',
+        paddingHorizontal: '5%',
     },
     errorText: {
         fontSize: 16,
@@ -340,7 +343,7 @@ const styles = StyleSheet.create({
         textAlign: 'center',
     },
     retryButton: {
-        backgroundColor: '#667eea',
+        backgroundColor: '#1a1a2e',
         paddingHorizontal: 30,
         paddingVertical: 12,
         borderRadius: 10,
@@ -351,47 +354,53 @@ const styles = StyleSheet.create({
         fontWeight: '600',
     },
     header: {
-        backgroundColor: '#667eea',
-        paddingTop: 60,
-        paddingBottom: 20,
-        paddingHorizontal: 20,
+        backgroundColor: '#f8f9fa',
+        paddingTop: 55,
+        paddingBottom: 15,
+        paddingHorizontal: '5%',
     },
     backButton: {
-        marginBottom: 15,
+        flexDirection: 'row',
+        alignItems: 'center',
+        marginBottom: 10,
     },
     backButtonText: {
-        color: '#fff',
+        color: '#1a1a2e',
         fontSize: 16,
-        fontWeight: '600',
+        fontWeight: '500',
     },
     headerTitle: {
-        fontSize: 24,
-        fontWeight: 'bold',
-        color: '#fff',
+        fontSize: 22,
+        fontWeight: '600',
+        color: '#1a1a2e',
     },
     progressBar: {
-        height: 4,
-        backgroundColor: '#e0e0e0',
+        height: 3,
+        backgroundColor: '#e8eaed',
+        marginHorizontal: '5%',
+        borderRadius: 2,
     },
     progressFill: {
         height: '100%',
-        backgroundColor: '#4caf50',
+        backgroundColor: '#1a1a2e',
+        borderRadius: 2,
     },
     content: {
         flex: 1,
     },
     contentContainer: {
-        padding: 20,
+        paddingHorizontal: '5%',
+        paddingVertical: 20,
     },
     questionCard: {
         backgroundColor: '#fff',
         borderRadius: 12,
         padding: 20,
         shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.1,
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.05,
         shadowRadius: 4,
-        elevation: 3,
+        elevation: 2,
     },
     questionHeader: {
         flexDirection: 'row',
@@ -402,7 +411,7 @@ const styles = StyleSheet.create({
     questionNumber: {
         fontSize: 14,
         fontWeight: '600',
-        color: '#667eea',
+        color: '#1a1a2e',
     },
     difficultyBadge: {
         paddingHorizontal: 10,
@@ -418,7 +427,7 @@ const styles = StyleSheet.create({
     questionText: {
         fontSize: 18,
         fontWeight: '600',
-        color: '#333',
+        color: '#1a1a2e',
         marginBottom: 20,
         lineHeight: 26,
     },
@@ -431,24 +440,24 @@ const styles = StyleSheet.create({
         padding: 15,
         borderRadius: 10,
         borderWidth: 2,
-        borderColor: '#e0e0e0',
+        borderColor: '#e8eaed',
         backgroundColor: '#fff',
     },
     optionButtonSelected: {
-        borderColor: '#667eea',
-        backgroundColor: '#f0f3ff',
+        borderColor: '#1a1a2e',
+        backgroundColor: '#f8f9fa',
     },
     optionCircle: {
         width: 32,
         height: 32,
         borderRadius: 16,
-        backgroundColor: '#f5f7fa',
+        backgroundColor: '#f8f9fa',
         justifyContent: 'center',
         alignItems: 'center',
         marginRight: 12,
     },
     optionCircleSelected: {
-        backgroundColor: '#667eea',
+        backgroundColor: '#1a1a2e',
     },
     optionLetter: {
         fontSize: 14,
@@ -464,20 +473,19 @@ const styles = StyleSheet.create({
         color: '#333',
     },
     optionTextSelected: {
-        color: '#667eea',
+        color: '#1a1a2e',
         fontWeight: '600',
     },
     navigationButtons: {
         flexDirection: 'row',
-        padding: 20,
+        paddingHorizontal: '5%',
+        paddingVertical: 15,
         gap: 10,
-        backgroundColor: '#fff',
-        borderTopWidth: 1,
-        borderTopColor: '#e0e0e0',
+        backgroundColor: '#f8f9fa',
     },
     navButton: {
         flex: 1,
-        backgroundColor: '#667eea',
+        backgroundColor: '#1a1a2e',
         paddingVertical: 15,
         borderRadius: 10,
         alignItems: 'center',
@@ -497,7 +505,8 @@ const styles = StyleSheet.create({
         color: '#fff',
     },
     resultsContainer: {
-        padding: 20,
+        paddingHorizontal: '5%',
+        paddingVertical: 20,
     },
     scoreCard: {
         backgroundColor: '#fff',
@@ -506,10 +515,10 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         marginBottom: 20,
         shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.1,
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.05,
         shadowRadius: 4,
-        elevation: 3,
+        elevation: 2,
     },
     scoreTitle: {
         fontSize: 16,
@@ -519,7 +528,7 @@ const styles = StyleSheet.create({
     scoreValue: {
         fontSize: 48,
         fontWeight: 'bold',
-        color: '#667eea',
+        color: '#1a1a2e',
     },
     scoreDetails: {
         fontSize: 14,
@@ -535,10 +544,10 @@ const styles = StyleSheet.create({
         borderRadius: 12,
         padding: 15,
         shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.1,
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.05,
         shadowRadius: 4,
-        elevation: 3,
+        elevation: 2,
     },
     resultHeader: {
         flexDirection: 'row',
@@ -549,7 +558,7 @@ const styles = StyleSheet.create({
     resultNumber: {
         fontSize: 14,
         fontWeight: '600',
-        color: '#667eea',
+        color: '#1a1a2e',
     },
     resultBadge: {
         width: 28,
@@ -566,13 +575,13 @@ const styles = StyleSheet.create({
     resultQuestion: {
         fontSize: 15,
         fontWeight: '600',
-        color: '#333',
+        color: '#1a1a2e',
         marginBottom: 8,
     },
     answerInfo: {
         marginTop: 8,
         padding: 12,
-        backgroundColor: '#f5f7fa',
+        backgroundColor: '#f8f9fa',
         borderRadius: 8,
     },
     wrongAnswer: {
@@ -601,13 +610,13 @@ const styles = StyleSheet.create({
         alignItems: 'center',
     },
     retryBtn: {
-        backgroundColor: '#667eea',
+        backgroundColor: '#1a1a2e',
     },
     historyBtn: {
-        backgroundColor: '#2196f3',
+        backgroundColor: '#4a5568',
     },
     backBtn: {
-        backgroundColor: '#999',
+        backgroundColor: '#718096',
     },
     actionBtnText: {
         color: '#fff',

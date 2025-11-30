@@ -9,21 +9,30 @@ import {
     ScrollView,
     FlatList,
     Modal,
+    RefreshControl,
 } from 'react-native';
 import * as DocumentPicker from 'expo-document-picker';
 import { useAuth } from '../context/AuthContext';
 import { coursesAPI, qcmAPI, flashcardsAPI } from '../utils/api';
 
 const DashboardScreen = ({ navigation }) => {
-    const { user, logout } = useAuth();
+    const { user } = useAuth();
     const [courses, setCourses] = useState([]);
     const [loading, setLoading] = useState(false);
+    const [refreshing, setRefreshing] = useState(false);
     const [uploading, setUploading] = useState(false);
     const [selectedCourse, setSelectedCourse] = useState(null);
     const [showQCMModal, setShowQCMModal] = useState(false);
     const [showFlashcardsModal, setShowFlashcardsModal] = useState(false);
+    const [showUploadModal, setShowUploadModal] = useState(false);
     const [qcmOptions, setQcmOptions] = useState({ nombre_questions: 10, difficulte: 'moyen' });
     const [flashcardsOptions, setFlashcardsOptions] = useState({ nombre_flashcards: 20 });
+    const [uploadData, setUploadData] = useState({
+        file: null,
+        titre: '',
+        matiere: 'Informatique',
+        annee_cible: 'Ing3',
+    });
 
     useEffect(() => {
         loadCourses();
@@ -46,6 +55,12 @@ const DashboardScreen = ({ navigation }) => {
         }
     };
 
+    const onRefresh = async () => {
+        setRefreshing(true);
+        await loadCourses();
+        setRefreshing(false);
+    };
+
     const handlePickDocument = async () => {
         try {
             const result = await DocumentPicker.getDocumentAsync({
@@ -55,7 +70,9 @@ const DashboardScreen = ({ navigation }) => {
 
             if (result.canceled === false && result.assets && result.assets.length > 0) {
                 const file = result.assets[0];
-                await uploadCourse(file);
+                const fileName = file.name.replace(/\.[^/.]+$/, '');
+                setUploadData({ ...uploadData, file, titre: fileName });
+                setShowUploadModal(true);
             }
         } catch (error) {
             Alert.alert('Erreur', 'Erreur lors de la sélection du fichier');
@@ -63,35 +80,40 @@ const DashboardScreen = ({ navigation }) => {
         }
     };
 
-    const uploadCourse = async (file) => {
+    const submitUpload = async () => {
+        if (!uploadData.file || !uploadData.titre) {
+            Alert.alert('Erreur', 'Veuillez remplir tous les champs');
+            return;
+        }
+
+        setShowUploadModal(false);
         setUploading(true);
+
         try {
             const formData = new FormData();
             formData.append('file', {
-                uri: file.uri,
-                name: file.name,
-                type: file.mimeType || 'application/octet-stream',
+                uri: uploadData.file.uri,
+                name: uploadData.file.name,
+                type: uploadData.file.mimeType || 'application/octet-stream',
             });
-
-            // Valeurs par défaut
-            const fileName = file.name.replace(/\.[^/.]+$/, '');
-            formData.append('titre', fileName);
+            formData.append('titre', uploadData.titre);
             formData.append('description', '');
-            formData.append('matiere', 'Informatique');
-            formData.append('annee_cible', 'Ing3');
+            formData.append('matiere', uploadData.matiere);
+            formData.append('annee_cible', uploadData.annee_cible);
             formData.append('type_document', 'cours');
 
             const response = await coursesAPI.upload(formData);
 
             if (response.success) {
-                Alert.alert('Succès', 'Cours uploadé avec succès !');
+                Alert.alert('Succès', 'Cours importé avec succès');
                 loadCourses();
             }
         } catch (error) {
-            Alert.alert('Erreur', error.message || 'Erreur lors de l\'upload');
+            Alert.alert('Erreur', error.message || 'Erreur lors de l\'import');
             console.error('Upload error:', error);
         } finally {
             setUploading(false);
+            setUploadData({ file: null, titre: '', matiere: 'Informatique', annee_cible: 'Ing3' });
         }
     };
 
@@ -104,18 +126,12 @@ const DashboardScreen = ({ navigation }) => {
         setShowQCMModal(false);
         setLoading(true);
         try {
-            console.log('🎯 Génération QCM pour cours:', selectedCourse.id);
-            console.log('📋 Options:', qcmOptions);
             const response = await qcmAPI.generateFromCourse(selectedCourse.id, qcmOptions);
-            console.log('✅ Réponse QCM:', response);
             if (response.success) {
-                Alert.alert('Succès', 'QCM généré avec succès !', [
-                    { text: 'OK', onPress: () => {} }
-                ]);
+                Alert.alert('Succès', 'QCM généré avec succès');
             }
         } catch (error) {
-            console.error('❌ Erreur génération QCM:', error);
-            Alert.alert('Erreur', error.message || 'Erreur lors de la génération du QCM');
+            Alert.alert('Erreur', error.message || 'Erreur lors de la génération');
         } finally {
             setLoading(false);
         }
@@ -130,18 +146,12 @@ const DashboardScreen = ({ navigation }) => {
         setShowFlashcardsModal(false);
         setLoading(true);
         try {
-            console.log('🎯 Génération Flashcards pour cours:', selectedCourse.id);
-            console.log('📋 Options:', flashcardsOptions);
             const response = await flashcardsAPI.generateFromCourse(selectedCourse.id, flashcardsOptions);
-            console.log('✅ Réponse Flashcards:', response);
             if (response.success) {
-                Alert.alert('Succès', 'Flashcards générées avec succès !', [
-                    { text: 'OK', onPress: () => {} }
-                ]);
+                Alert.alert('Succès', 'Flashcards générées avec succès');
             }
         } catch (error) {
-            console.error('❌ Erreur génération Flashcards:', error);
-            Alert.alert('Erreur', error.message || 'Erreur lors de la génération des flashcards');
+            Alert.alert('Erreur', error.message || 'Erreur lors de la génération');
         } finally {
             setLoading(false);
         }
@@ -149,8 +159,8 @@ const DashboardScreen = ({ navigation }) => {
 
     const handleDeleteCourse = async (courseId) => {
         Alert.alert(
-            'Confirmer',
-            'Êtes-vous sûr de vouloir supprimer ce cours ?',
+            'Supprimer ce cours',
+            'Cette action est irréversible.',
             [
                 { text: 'Annuler', style: 'cancel' },
                 {
@@ -159,7 +169,6 @@ const DashboardScreen = ({ navigation }) => {
                     onPress: async () => {
                         try {
                             await coursesAPI.deleteCourse(courseId);
-                            Alert.alert('Succès', 'Cours supprimé');
                             loadCourses();
                         } catch (error) {
                             Alert.alert('Erreur', 'Erreur lors de la suppression');
@@ -177,42 +186,47 @@ const DashboardScreen = ({ navigation }) => {
         });
     };
 
+    const matieres = ['Informatique', 'Mathématiques', 'Physique', 'Électronique', 'Anglais', 'Autre'];
+    const annees = ['Ing1', 'Ing2', 'Ing3'];
+
     const renderCourse = ({ item }) => (
         <View style={styles.courseCard}>
-            <View style={styles.courseHeader}>
-                <Text style={styles.courseTitle}>{item.titre}</Text>
-                <Text style={styles.courseMatiere}>{item.matiere}</Text>
-            </View>
-            <Text style={styles.courseInfo}>
-                {item.annee_cible} • {item.type_document}
-            </Text>
-            {item.description && (
-                <Text style={styles.courseDescription}>{item.description}</Text>
-            )}
+            <TouchableOpacity
+                style={styles.courseMain}
+                onPress={() => handleOpenCourse(item)}
+                activeOpacity={0.7}
+            >
+                <View style={styles.courseIcon}>
+                    <Text style={styles.courseIconText}>
+                        {item.file_type === 'pdf' ? '📄' : item.file_type === 'txt' ? '📝' : '📑'}
+                    </Text>
+                </View>
+                <View style={styles.courseInfo}>
+                    <Text style={styles.courseTitle} numberOfLines={1}>{item.titre}</Text>
+                    <Text style={styles.courseMeta}>
+                        {item.matiere} • {item.annee_cible}
+                    </Text>
+                </View>
+                <Text style={styles.courseArrow}>›</Text>
+            </TouchableOpacity>
             <View style={styles.courseActions}>
                 <TouchableOpacity
-                    style={[styles.actionButton, styles.readButton]}
-                    onPress={() => handleOpenCourse(item)}
-                >
-                    <Text style={styles.actionButtonText}>📖 Lire</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                    style={[styles.actionButton, styles.qcmButton]}
+                    style={styles.actionBtn}
                     onPress={() => handleGenerateQCM(item)}
                 >
-                    <Text style={styles.actionButtonText}>📝 QCM</Text>
+                    <Text style={styles.actionBtnText}>QCM</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
-                    style={[styles.actionButton, styles.flashButton]}
+                    style={styles.actionBtn}
                     onPress={() => handleGenerateFlashcards(item)}
                 >
-                    <Text style={styles.actionButtonText}>🗂️ Flash</Text>
+                    <Text style={styles.actionBtnText}>Flashcards</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
-                    style={[styles.actionButton, styles.deleteButton]}
+                    style={[styles.actionBtn, styles.deleteBtn]}
                     onPress={() => handleDeleteCourse(item.id)}
                 >
-                    <Text style={styles.actionButtonText}>🗑️</Text>
+                    <Text style={styles.deleteBtnText}>Suppr.</Text>
                 </TouchableOpacity>
             </View>
         </View>
@@ -220,42 +234,91 @@ const DashboardScreen = ({ navigation }) => {
 
     return (
         <View style={styles.container}>
+            {/* Header */}
             <View style={styles.header}>
-                <View>
-                    <Text style={styles.greeting}>Bonjour {user?.prenom} 👋</Text>
-                    <Text style={styles.subtitle}>Bienvenue sur ECE Learning</Text>
+                <View style={styles.headerLeft}>
+                    <Text style={styles.greeting}>Bonjour, {user?.prenom}</Text>
+                    <Text style={styles.subtitle}>Prêt à apprendre ?</Text>
                 </View>
-                <TouchableOpacity onPress={logout} style={styles.logoutButton}>
-                    <Text style={styles.logoutText}>Déconnexion</Text>
+                <TouchableOpacity
+                    style={styles.settingsButton}
+                    onPress={() => navigation.navigate('Settings')}
+                >
+                    <Text style={styles.settingsIcon}>⚙️</Text>
                 </TouchableOpacity>
             </View>
 
-            <ScrollView style={styles.content}>
-                <View style={styles.uploadSection}>
-                    <Text style={styles.sectionTitle}>📤 Uploader un cours</Text>
+            {/* Loading overlay */}
+            {(loading || uploading) && (
+                <View style={styles.loadingOverlay}>
+                    <View style={styles.loadingBox}>
+                        <ActivityIndicator size="large" color="#1a1a2e" />
+                        <Text style={styles.loadingText}>
+                            {uploading ? 'Import en cours...' : 'Chargement...'}
+                        </Text>
+                    </View>
+                </View>
+            )}
+
+            <ScrollView
+                style={styles.content}
+                showsVerticalScrollIndicator={false}
+                refreshControl={
+                    <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+                }
+            >
+                {/* Quick Actions */}
+                <View style={styles.quickActions}>
                     <TouchableOpacity
-                        style={styles.uploadButton}
+                        style={styles.quickAction}
                         onPress={handlePickDocument}
-                        disabled={uploading}
                     >
-                        {uploading ? (
-                            <ActivityIndicator color="#667eea" />
-                        ) : (
-                            <>
-                                <Text style={styles.uploadIcon}>📁</Text>
-                                <Text style={styles.uploadText}>Choisir un fichier</Text>
-                                <Text style={styles.uploadSubtext}>PDF, DOCX ou TXT</Text>
-                            </>
-                        )}
+                        <View style={[styles.quickActionIcon, { backgroundColor: '#f0f7f0' }]}>
+                            <Text style={[styles.quickActionIconText, { color: '#4a7c59' }]}>+</Text>
+                        </View>
+                        <Text style={styles.quickActionText}>Importer</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                        style={styles.quickAction}
+                        onPress={() => navigation.navigate('QCM')}
+                    >
+                        <View style={[styles.quickActionIcon, { backgroundColor: '#f0f4f8' }]}>
+                            <Text style={[styles.quickActionIconText, { color: '#4a6fa5' }]}>Q</Text>
+                        </View>
+                        <Text style={styles.quickActionText}>Mes QCM</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                        style={styles.quickAction}
+                        onPress={() => navigation.navigate('Flashcards')}
+                    >
+                        <View style={[styles.quickActionIcon, { backgroundColor: '#f8f0f4' }]}>
+                            <Text style={[styles.quickActionIconText, { color: '#8b5a6b' }]}>F</Text>
+                        </View>
+                        <Text style={styles.quickActionText}>Flashcards</Text>
                     </TouchableOpacity>
                 </View>
 
-                <View style={styles.coursesSection}>
-                    <Text style={styles.sectionTitle}>📚 Mes cours ({courses?.length || 0})</Text>
-                    {loading && (!courses || courses.length === 0) ? (
-                        <ActivityIndicator color="#667eea" style={{ marginTop: 20 }} />
-                    ) : (!courses || courses.length === 0) ? (
-                        <Text style={styles.emptyText}>Aucun cours uploadé pour le moment</Text>
+                {/* Courses Section */}
+                <View style={styles.section}>
+                    <View style={styles.sectionHeader}>
+                        <Text style={styles.sectionTitle}>Mes cours</Text>
+                        <Text style={styles.sectionCount}>{courses.length}</Text>
+                    </View>
+
+                    {courses.length === 0 ? (
+                        <View style={styles.emptyState}>
+                            <Text style={styles.emptyIcon}>📚</Text>
+                            <Text style={styles.emptyTitle}>Aucun cours</Text>
+                            <Text style={styles.emptyText}>
+                                Importez votre premier cours pour commencer
+                            </Text>
+                            <TouchableOpacity
+                                style={styles.emptyButton}
+                                onPress={handlePickDocument}
+                            >
+                                <Text style={styles.emptyButtonText}>Importer un cours</Text>
+                            </TouchableOpacity>
+                        </View>
                     ) : (
                         <FlatList
                             data={courses}
@@ -267,36 +330,103 @@ const DashboardScreen = ({ navigation }) => {
                 </View>
             </ScrollView>
 
-            {/* Modal QCM */}
+            {/* Upload Modal */}
+            <Modal
+                visible={showUploadModal}
+                transparent
+                animationType="fade"
+                onRequestClose={() => setShowUploadModal(false)}
+            >
+                <View style={styles.modalOverlay}>
+                    <View style={styles.modalContent}>
+                        <Text style={styles.modalTitle}>Importer un cours</Text>
+                        <Text style={styles.modalFileName}>{uploadData.file?.name}</Text>
+
+                        <View style={styles.inputGroup}>
+                            <Text style={styles.inputLabel}>Titre</Text>
+                            <View style={styles.inputContainer}>
+                                <Text style={styles.input} numberOfLines={1}>
+                                    {uploadData.titre || 'Titre du cours'}
+                                </Text>
+                            </View>
+                        </View>
+
+                        <View style={styles.inputGroup}>
+                            <Text style={styles.inputLabel}>Matière</Text>
+                            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                                <View style={styles.chipContainer}>
+                                    {matieres.map((m) => (
+                                        <TouchableOpacity
+                                            key={m}
+                                            style={[styles.chip, uploadData.matiere === m && styles.chipActive]}
+                                            onPress={() => setUploadData({ ...uploadData, matiere: m })}
+                                        >
+                                            <Text style={[styles.chipText, uploadData.matiere === m && styles.chipTextActive]}>
+                                                {m}
+                                            </Text>
+                                        </TouchableOpacity>
+                                    ))}
+                                </View>
+                            </ScrollView>
+                        </View>
+
+                        <View style={styles.inputGroup}>
+                            <Text style={styles.inputLabel}>Année</Text>
+                            <View style={styles.chipContainer}>
+                                {annees.map((a) => (
+                                    <TouchableOpacity
+                                        key={a}
+                                        style={[styles.chip, uploadData.annee_cible === a && styles.chipActive]}
+                                        onPress={() => setUploadData({ ...uploadData, annee_cible: a })}
+                                    >
+                                        <Text style={[styles.chipText, uploadData.annee_cible === a && styles.chipTextActive]}>
+                                            {a}
+                                        </Text>
+                                    </TouchableOpacity>
+                                ))}
+                            </View>
+                        </View>
+
+                        <View style={styles.modalActions}>
+                            <TouchableOpacity
+                                style={styles.modalBtnSecondary}
+                                onPress={() => setShowUploadModal(false)}
+                            >
+                                <Text style={styles.modalBtnSecondaryText}>Annuler</Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity
+                                style={styles.modalBtnPrimary}
+                                onPress={submitUpload}
+                            >
+                                <Text style={styles.modalBtnPrimaryText}>Importer</Text>
+                            </TouchableOpacity>
+                        </View>
+                    </View>
+                </View>
+            </Modal>
+
+            {/* QCM Modal */}
             <Modal
                 visible={showQCMModal}
                 transparent
-                animationType="slide"
+                animationType="fade"
                 onRequestClose={() => setShowQCMModal(false)}
             >
                 <View style={styles.modalOverlay}>
                     <View style={styles.modalContent}>
                         <Text style={styles.modalTitle}>Générer un QCM</Text>
-                        <Text style={styles.modalCourse}>{selectedCourse?.titre}</Text>
+                        <Text style={styles.modalSubtitle}>{selectedCourse?.titre}</Text>
 
-                        <View style={styles.optionGroup}>
-                            <Text style={styles.optionLabel}>Nombre de questions</Text>
-                            <View style={styles.optionButtons}>
+                        <View style={styles.inputGroup}>
+                            <Text style={styles.inputLabel}>Nombre de questions</Text>
+                            <View style={styles.chipContainer}>
                                 {[5, 10, 15, 20].map((num) => (
                                     <TouchableOpacity
                                         key={num}
-                                        style={[
-                                            styles.optionButton,
-                                            qcmOptions.nombre_questions === num && styles.optionButtonActive,
-                                        ]}
+                                        style={[styles.chip, qcmOptions.nombre_questions === num && styles.chipActive]}
                                         onPress={() => setQcmOptions({ ...qcmOptions, nombre_questions: num })}
                                     >
-                                        <Text
-                                            style={[
-                                                styles.optionButtonText,
-                                                qcmOptions.nombre_questions === num && styles.optionButtonTextActive,
-                                            ]}
-                                        >
+                                        <Text style={[styles.chipText, qcmOptions.nombre_questions === num && styles.chipTextActive]}>
                                             {num}
                                         </Text>
                                     </TouchableOpacity>
@@ -304,24 +434,16 @@ const DashboardScreen = ({ navigation }) => {
                             </View>
                         </View>
 
-                        <View style={styles.optionGroup}>
-                            <Text style={styles.optionLabel}>Difficulté</Text>
-                            <View style={styles.optionButtons}>
+                        <View style={styles.inputGroup}>
+                            <Text style={styles.inputLabel}>Difficulté</Text>
+                            <View style={styles.chipContainer}>
                                 {['facile', 'moyen', 'difficile'].map((diff) => (
                                     <TouchableOpacity
                                         key={diff}
-                                        style={[
-                                            styles.optionButton,
-                                            qcmOptions.difficulte === diff && styles.optionButtonActive,
-                                        ]}
+                                        style={[styles.chip, qcmOptions.difficulte === diff && styles.chipActive]}
                                         onPress={() => setQcmOptions({ ...qcmOptions, difficulte: diff })}
                                     >
-                                        <Text
-                                            style={[
-                                                styles.optionButtonText,
-                                                qcmOptions.difficulte === diff && styles.optionButtonTextActive,
-                                            ]}
-                                        >
+                                        <Text style={[styles.chipText, qcmOptions.difficulte === diff && styles.chipTextActive]}>
                                             {diff.charAt(0).toUpperCase() + diff.slice(1)}
                                         </Text>
                                     </TouchableOpacity>
@@ -331,52 +453,44 @@ const DashboardScreen = ({ navigation }) => {
 
                         <View style={styles.modalActions}>
                             <TouchableOpacity
-                                style={[styles.modalButton, styles.cancelButton]}
+                                style={styles.modalBtnSecondary}
                                 onPress={() => setShowQCMModal(false)}
                             >
-                                <Text style={styles.cancelButtonText}>Annuler</Text>
+                                <Text style={styles.modalBtnSecondaryText}>Annuler</Text>
                             </TouchableOpacity>
                             <TouchableOpacity
-                                style={[styles.modalButton, styles.generateButton]}
+                                style={styles.modalBtnPrimary}
                                 onPress={submitQCMGeneration}
                             >
-                                <Text style={styles.generateButtonText}>Générer</Text>
+                                <Text style={styles.modalBtnPrimaryText}>Générer</Text>
                             </TouchableOpacity>
                         </View>
                     </View>
                 </View>
             </Modal>
 
-            {/* Modal Flashcards */}
+            {/* Flashcards Modal */}
             <Modal
                 visible={showFlashcardsModal}
                 transparent
-                animationType="slide"
+                animationType="fade"
                 onRequestClose={() => setShowFlashcardsModal(false)}
             >
                 <View style={styles.modalOverlay}>
                     <View style={styles.modalContent}>
                         <Text style={styles.modalTitle}>Générer des Flashcards</Text>
-                        <Text style={styles.modalCourse}>{selectedCourse?.titre}</Text>
+                        <Text style={styles.modalSubtitle}>{selectedCourse?.titre}</Text>
 
-                        <View style={styles.optionGroup}>
-                            <Text style={styles.optionLabel}>Nombre de flashcards</Text>
-                            <View style={styles.optionButtons}>
+                        <View style={styles.inputGroup}>
+                            <Text style={styles.inputLabel}>Nombre de cartes</Text>
+                            <View style={styles.chipContainer}>
                                 {[10, 20, 30, 50].map((num) => (
                                     <TouchableOpacity
                                         key={num}
-                                        style={[
-                                            styles.optionButton,
-                                            flashcardsOptions.nombre_flashcards === num && styles.optionButtonActive,
-                                        ]}
+                                        style={[styles.chip, flashcardsOptions.nombre_flashcards === num && styles.chipActive]}
                                         onPress={() => setFlashcardsOptions({ nombre_flashcards: num })}
                                     >
-                                        <Text
-                                            style={[
-                                                styles.optionButtonText,
-                                                flashcardsOptions.nombre_flashcards === num && styles.optionButtonTextActive,
-                                            ]}
-                                        >
+                                        <Text style={[styles.chipText, flashcardsOptions.nombre_flashcards === num && styles.chipTextActive]}>
                                             {num}
                                         </Text>
                                     </TouchableOpacity>
@@ -386,16 +500,16 @@ const DashboardScreen = ({ navigation }) => {
 
                         <View style={styles.modalActions}>
                             <TouchableOpacity
-                                style={[styles.modalButton, styles.cancelButton]}
+                                style={styles.modalBtnSecondary}
                                 onPress={() => setShowFlashcardsModal(false)}
                             >
-                                <Text style={styles.cancelButtonText}>Annuler</Text>
+                                <Text style={styles.modalBtnSecondaryText}>Annuler</Text>
                             </TouchableOpacity>
                             <TouchableOpacity
-                                style={[styles.modalButton, styles.generateButton]}
+                                style={styles.modalBtnPrimary}
                                 onPress={submitFlashcardsGeneration}
                             >
-                                <Text style={styles.generateButtonText}>Générer</Text>
+                                <Text style={styles.modalBtnPrimaryText}>Générer</Text>
                             </TouchableOpacity>
                         </View>
                     </View>
@@ -408,235 +522,335 @@ const DashboardScreen = ({ navigation }) => {
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: '#f5f7fa',
+        backgroundColor: '#f8f9fa',
     },
     header: {
-        backgroundColor: '#667eea',
-        padding: 20,
-        paddingTop: 60,
+        backgroundColor: '#f8f9fa',
+        paddingTop: 55,
+        paddingBottom: 15,
+        paddingHorizontal: 20,
         flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'center',
     },
+    headerLeft: {
+        flex: 1,
+    },
     greeting: {
-        fontSize: 24,
-        fontWeight: 'bold',
-        color: '#fff',
+        fontSize: 22,
+        fontWeight: '600',
+        color: '#1a1a2e',
     },
     subtitle: {
-        fontSize: 14,
-        color: '#fff',
-        opacity: 0.9,
-        marginTop: 5,
+        fontSize: 13,
+        color: '#8a8a8a',
+        marginTop: 2,
     },
-    logoutButton: {
-        backgroundColor: 'rgba(255,255,255,0.2)',
-        paddingHorizontal: 15,
-        paddingVertical: 8,
-        borderRadius: 8,
+    settingsButton: {
+        width: 40,
+        height: 40,
+        borderRadius: 20,
+        backgroundColor: '#fff',
+        justifyContent: 'center',
+        alignItems: 'center',
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.05,
+        shadowRadius: 4,
+        elevation: 1,
     },
-    logoutText: {
-        color: '#fff',
-        fontWeight: '600',
+    settingsIcon: {
+        fontSize: 18,
     },
     content: {
         flex: 1,
-        padding: 20,
     },
-    uploadSection: {
-        marginBottom: 30,
+    loadingOverlay: {
+        position: 'absolute',
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        backgroundColor: 'rgba(0,0,0,0.3)',
+        justifyContent: 'center',
+        alignItems: 'center',
+        zIndex: 100,
+    },
+    loadingBox: {
+        backgroundColor: '#fff',
+        padding: 30,
+        borderRadius: 16,
+        alignItems: 'center',
+    },
+    loadingText: {
+        marginTop: 15,
+        fontSize: 14,
+        color: '#666',
+    },
+    quickActions: {
+        flexDirection: 'row',
+        padding: 20,
+        paddingTop: 10,
+        gap: 12,
+    },
+    quickAction: {
+        flex: 1,
+        backgroundColor: '#fff',
+        borderRadius: 16,
+        padding: 16,
+        alignItems: 'center',
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.04,
+        shadowRadius: 8,
+        elevation: 2,
+    },
+    quickActionIcon: {
+        width: 48,
+        height: 48,
+        borderRadius: 24,
+        justifyContent: 'center',
+        alignItems: 'center',
+        marginBottom: 8,
+    },
+    quickActionIconText: {
+        fontSize: 18,
+        fontWeight: '600',
+    },
+    quickActionText: {
+        fontSize: 12,
+        fontWeight: '600',
+        color: '#1a1a2e',
+    },
+    section: {
+        padding: 20,
+        paddingTop: 10,
+    },
+    sectionHeader: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        marginBottom: 16,
     },
     sectionTitle: {
         fontSize: 18,
-        fontWeight: 'bold',
-        color: '#333',
-        marginBottom: 15,
+        fontWeight: '700',
+        color: '#1a1a2e',
     },
-    uploadButton: {
+    sectionCount: {
+        marginLeft: 10,
+        fontSize: 14,
+        color: '#8a8a8a',
+        backgroundColor: '#e8e8e8',
+        paddingHorizontal: 10,
+        paddingVertical: 2,
+        borderRadius: 10,
+    },
+    emptyState: {
         backgroundColor: '#fff',
-        borderRadius: 15,
-        padding: 30,
+        borderRadius: 16,
+        padding: 40,
         alignItems: 'center',
-        borderWidth: 2,
-        borderColor: '#667eea',
-        borderStyle: 'dashed',
     },
-    uploadIcon: {
-        fontSize: 40,
-        marginBottom: 10,
+    emptyIcon: {
+        fontSize: 48,
+        marginBottom: 16,
     },
-    uploadText: {
-        fontSize: 16,
+    emptyTitle: {
+        fontSize: 18,
         fontWeight: '600',
-        color: '#667eea',
-        marginBottom: 5,
-    },
-    uploadSubtext: {
-        fontSize: 12,
-        color: '#666',
-    },
-    coursesSection: {
-        marginBottom: 30,
+        color: '#1a1a2e',
+        marginBottom: 8,
     },
     emptyText: {
-        textAlign: 'center',
-        color: '#999',
         fontSize: 14,
-        marginTop: 20,
+        color: '#8a8a8a',
+        textAlign: 'center',
+        marginBottom: 20,
+    },
+    emptyButton: {
+        backgroundColor: '#1a1a2e',
+        paddingHorizontal: 24,
+        paddingVertical: 12,
+        borderRadius: 10,
+    },
+    emptyButtonText: {
+        color: '#fff',
+        fontWeight: '600',
     },
     courseCard: {
         backgroundColor: '#fff',
-        borderRadius: 12,
-        padding: 15,
-        marginBottom: 15,
+        borderRadius: 14,
+        marginBottom: 12,
         shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.1,
-        shadowRadius: 4,
-        elevation: 3,
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.04,
+        shadowRadius: 6,
+        elevation: 2,
     },
-    courseHeader: {
+    courseMain: {
         flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'flex-start',
-        marginBottom: 8,
+        alignItems: 'center',
+        padding: 16,
     },
-    courseTitle: {
-        fontSize: 16,
-        fontWeight: 'bold',
-        color: '#333',
-        flex: 1,
-    },
-    courseMatiere: {
-        fontSize: 12,
-        color: '#667eea',
-        backgroundColor: '#e8ebf9',
-        paddingHorizontal: 10,
-        paddingVertical: 4,
+    courseIcon: {
+        width: 44,
+        height: 44,
         borderRadius: 12,
-        fontWeight: '600',
+        backgroundColor: '#f0f0f0',
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    courseIconText: {
+        fontSize: 22,
     },
     courseInfo: {
-        fontSize: 12,
-        color: '#666',
-        marginBottom: 5,
+        flex: 1,
+        marginLeft: 14,
     },
-    courseDescription: {
-        fontSize: 13,
-        color: '#555',
-        marginBottom: 10,
+    courseTitle: {
+        fontSize: 15,
+        fontWeight: '600',
+        color: '#1a1a2e',
+    },
+    courseMeta: {
+        fontSize: 12,
+        color: '#8a8a8a',
+        marginTop: 3,
+    },
+    courseArrow: {
+        fontSize: 24,
+        color: '#c0c0c0',
+        fontWeight: '300',
     },
     courseActions: {
         flexDirection: 'row',
+        borderTopWidth: 1,
+        borderTopColor: '#f0f0f0',
+        padding: 10,
         gap: 8,
-        marginTop: 10,
     },
-    actionButton: {
+    actionBtn: {
         flex: 1,
-        paddingVertical: 10,
+        paddingVertical: 8,
         borderRadius: 8,
+        backgroundColor: '#f5f5f5',
         alignItems: 'center',
     },
-    readButton: {
-        backgroundColor: '#4caf50',
-    },
-    qcmButton: {
-        backgroundColor: '#667eea',
-    },
-    flashButton: {
-        backgroundColor: '#764ba2',
-    },
-    deleteButton: {
-        backgroundColor: '#ff6b6b',
-        flex: 0.3,
-    },
-    actionButtonText: {
-        color: '#fff',
+    actionBtnText: {
+        fontSize: 12,
         fontWeight: '600',
-        fontSize: 13,
+        color: '#1a1a2e',
+    },
+    deleteBtn: {
+        backgroundColor: '#fff5f5',
+        flex: 0.6,
+    },
+    deleteBtnText: {
+        fontSize: 12,
+        fontWeight: '600',
+        color: '#e53e3e',
     },
     modalOverlay: {
         flex: 1,
         backgroundColor: 'rgba(0,0,0,0.5)',
         justifyContent: 'center',
         alignItems: 'center',
-        padding: 20,
+        padding: 24,
     },
     modalContent: {
         backgroundColor: '#fff',
         borderRadius: 20,
-        padding: 25,
+        padding: 24,
         width: '100%',
         maxWidth: 400,
     },
     modalTitle: {
-        fontSize: 22,
-        fontWeight: 'bold',
-        color: '#333',
-        marginBottom: 8,
+        fontSize: 20,
+        fontWeight: '700',
+        color: '#1a1a2e',
+        marginBottom: 4,
     },
-    modalCourse: {
+    modalSubtitle: {
         fontSize: 14,
-        color: '#667eea',
-        marginBottom: 25,
+        color: '#8a8a8a',
+        marginBottom: 24,
     },
-    optionGroup: {
-        marginBottom: 25,
-    },
-    optionLabel: {
-        fontSize: 15,
-        fontWeight: '600',
-        color: '#333',
-        marginBottom: 12,
-    },
-    optionButtons: {
-        flexDirection: 'row',
-        gap: 8,
-        flexWrap: 'wrap',
-    },
-    optionButton: {
-        paddingHorizontal: 20,
-        paddingVertical: 10,
-        borderRadius: 8,
+    modalFileName: {
+        fontSize: 13,
+        color: '#666',
         backgroundColor: '#f5f5f5',
-        borderWidth: 2,
-        borderColor: '#e0e0e0',
+        padding: 10,
+        borderRadius: 8,
+        marginBottom: 20,
     },
-    optionButtonActive: {
-        backgroundColor: '#667eea',
-        borderColor: '#667eea',
+    inputGroup: {
+        marginBottom: 20,
     },
-    optionButtonText: {
-        color: '#333',
+    inputLabel: {
+        fontSize: 13,
         fontWeight: '600',
+        color: '#1a1a2e',
+        marginBottom: 10,
     },
-    optionButtonTextActive: {
+    inputContainer: {
+        backgroundColor: '#f5f5f5',
+        borderRadius: 10,
+        padding: 14,
+    },
+    input: {
+        fontSize: 15,
+        color: '#1a1a2e',
+    },
+    chipContainer: {
+        flexDirection: 'row',
+        flexWrap: 'wrap',
+        gap: 8,
+    },
+    chip: {
+        paddingHorizontal: 16,
+        paddingVertical: 10,
+        borderRadius: 20,
+        backgroundColor: '#f5f5f5',
+    },
+    chipActive: {
+        backgroundColor: '#1a1a2e',
+    },
+    chipText: {
+        fontSize: 13,
+        fontWeight: '500',
+        color: '#666',
+    },
+    chipTextActive: {
         color: '#fff',
     },
     modalActions: {
         flexDirection: 'row',
-        gap: 10,
+        gap: 12,
         marginTop: 10,
     },
-    modalButton: {
+    modalBtnSecondary: {
         flex: 1,
         paddingVertical: 14,
-        borderRadius: 10,
+        borderRadius: 12,
+        backgroundColor: '#f0f0f0',
         alignItems: 'center',
     },
-    cancelButton: {
-        backgroundColor: '#e0e0e0',
+    modalBtnSecondaryText: {
+        fontSize: 15,
+        fontWeight: '600',
+        color: '#666',
     },
-    generateButton: {
-        backgroundColor: '#667eea',
+    modalBtnPrimary: {
+        flex: 1,
+        paddingVertical: 14,
+        borderRadius: 12,
+        backgroundColor: '#1a1a2e',
+        alignItems: 'center',
     },
-    cancelButtonText: {
-        color: '#333',
-        fontWeight: 'bold',
-    },
-    generateButtonText: {
+    modalBtnPrimaryText: {
+        fontSize: 15,
+        fontWeight: '600',
         color: '#fff',
-        fontWeight: 'bold',
     },
 });
 

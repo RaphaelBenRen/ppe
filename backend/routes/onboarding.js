@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const { pool } = require('../config/database');
+const { supabase } = require('../config/database');
 const authMiddleware = require('../middleware/auth');
 
 // Route pour sauvegarder les données d'onboarding
@@ -33,45 +33,48 @@ router.post('/complete', authMiddleware, async (req, res) => {
             });
         }
 
-        // Conversion des arrays en JSON pour stockage
-        const pointsFortsJSON = JSON.stringify(points_forts || []);
-        const pointsFaiblesJSON = JSON.stringify(points_faibles || []);
+        // Vérifier si un profil existe déjà
+        const { data: existing, error: checkError } = await supabase
+            .from('student_profiles')
+            .select('id')
+            .eq('user_id', userId);
 
-        // Insertion ou mise à jour du profil étudiant
-        const [existing] = await pool.query(
-            'SELECT id FROM student_profiles WHERE user_id = ?',
-            [userId]
-        );
+        if (checkError) throw checkError;
 
-        if (existing.length > 0) {
+        const profileData = {
+            user_id: userId,
+            annee_etude,
+            majeure: majeure || null,
+            points_forts: points_forts || [],
+            points_faibles: points_faibles || [],
+            objectifs_apprentissage: objectifs_apprentissage || null,
+            preferences_difficulte: preferences_difficulte || 'moyen'
+        };
+
+        if (existing && existing.length > 0) {
             // Mise à jour
-            await pool.query(`
-                UPDATE student_profiles
-                SET annee_etude = ?,
-                    majeure = ?,
-                    points_forts = ?,
-                    points_faibles = ?,
-                    objectifs_apprentissage = ?,
-                    preferences_difficulte = ?
-                WHERE user_id = ?
-            `, [annee_etude, majeure || null, pointsFortsJSON, pointsFaiblesJSON,
-                objectifs_apprentissage || null, preferences_difficulte || 'moyen', userId]);
+            const { error: updateError } = await supabase
+                .from('student_profiles')
+                .update(profileData)
+                .eq('user_id', userId);
+
+            if (updateError) throw updateError;
         } else {
             // Insertion
-            await pool.query(`
-                INSERT INTO student_profiles
-                (user_id, annee_etude, majeure, points_forts, points_faibles,
-                 objectifs_apprentissage, preferences_difficulte)
-                VALUES (?, ?, ?, ?, ?, ?, ?)
-            `, [userId, annee_etude, majeure || null, pointsFortsJSON, pointsFaiblesJSON,
-                objectifs_apprentissage || null, preferences_difficulte || 'moyen']);
+            const { error: insertError } = await supabase
+                .from('student_profiles')
+                .insert(profileData);
+
+            if (insertError) throw insertError;
         }
 
         // Marquer l'onboarding comme complété
-        await pool.query(
-            'UPDATE users SET onboarding_completed = TRUE WHERE id = ?',
-            [userId]
-        );
+        const { error: userUpdateError } = await supabase
+            .from('users')
+            .update({ onboarding_completed: true })
+            .eq('id', userId);
+
+        if (userUpdateError) throw userUpdateError;
 
         res.json({
             success: true,
@@ -98,19 +101,14 @@ router.get('/profile', authMiddleware, async (req, res) => {
     try {
         const userId = req.user.userId;
 
-        const [profiles] = await pool.query(`
-            SELECT
-                sp.*,
-                u.email,
-                u.nom,
-                u.prenom,
-                u.onboarding_completed
-            FROM student_profiles sp
-            JOIN users u ON sp.user_id = u.id
-            WHERE sp.user_id = ?
-        `, [userId]);
+        const { data: profiles, error } = await supabase
+            .from('student_profiles')
+            .select('*')
+            .eq('user_id', userId);
 
-        if (profiles.length === 0) {
+        if (error) throw error;
+
+        if (!profiles || profiles.length === 0) {
             return res.status(404).json({
                 success: false,
                 message: 'Profil non trouvé.'
@@ -119,13 +117,24 @@ router.get('/profile', authMiddleware, async (req, res) => {
 
         const profile = profiles[0];
 
-        // Parse JSON fields
-        profile.points_forts = JSON.parse(profile.points_forts || '[]');
-        profile.points_faibles = JSON.parse(profile.points_faibles || '[]');
+        // Récupérer les infos utilisateur
+        const { data: users, error: userError } = await supabase
+            .from('users')
+            .select('email, nom, prenom')
+            .eq('id', userId);
+
+        if (userError) throw userError;
+
+        const user = users[0];
 
         res.json({
             success: true,
-            data: profile
+            data: {
+                ...profile,
+                email: user.email,
+                nom: user.nom,
+                prenom: user.prenom
+            }
         });
 
     } catch (error) {
@@ -140,17 +149,16 @@ router.get('/profile', authMiddleware, async (req, res) => {
 // Route pour obtenir la liste des matières disponibles
 router.get('/matieres', authMiddleware, async (req, res) => {
     try {
-        const [matieres] = await pool.query('SELECT * FROM matieres ORDER BY nom');
+        const { data: matieres, error } = await supabase
+            .from('matieres')
+            .select('*')
+            .order('nom');
 
-        // Parse le JSON des années concernées
-        const matieresFormatted = matieres.map(m => ({
-            ...m,
-            annees_concernees: JSON.parse(m.annees_concernees)
-        }));
+        if (error) throw error;
 
         res.json({
             success: true,
-            data: matieresFormatted
+            data: matieres || []
         });
 
     } catch (error) {

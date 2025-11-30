@@ -6,12 +6,18 @@ import {
     FlatList,
     TouchableOpacity,
     ActivityIndicator,
+    Dimensions,
+    useWindowDimensions,
 } from 'react-native';
 import { flashcardsAPI } from '../utils/api';
+
+const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
 const FlashcardsScreen = ({ navigation }) => {
     const [flashcardSets, setFlashcardSets] = useState([]);
     const [loading, setLoading] = useState(true);
+    const { width, height } = useWindowDimensions();
+    const isTablet = width >= 768;
 
     useEffect(() => {
         loadFlashcards();
@@ -49,16 +55,16 @@ const FlashcardsScreen = ({ navigation }) => {
     return (
         <View style={styles.container}>
             <View style={styles.header}>
-                <Text style={styles.headerTitle}>🗂️ Mes Flashcards</Text>
+                <Text style={[styles.headerTitle, isTablet && styles.headerTitleTablet]}>Mes Flashcards</Text>
             </View>
 
             {loading ? (
-                <ActivityIndicator color="#764ba2" style={{ marginTop: 50 }} />
+                <ActivityIndicator color="#1a1a2e" style={{ marginTop: 50 }} />
             ) : flashcardSets.length === 0 ? (
                 <View style={styles.emptyContainer}>
-                    <Text style={styles.emptyIcon}>🗂️</Text>
-                    <Text style={styles.emptyText}>Aucune flashcard générée</Text>
-                    <Text style={styles.emptySubtext}>
+                    <Text style={styles.emptyIcon}>F</Text>
+                    <Text style={[styles.emptyText, isTablet && styles.emptyTextTablet]}>Aucune flashcard générée</Text>
+                    <Text style={[styles.emptySubtext, isTablet && styles.emptySubtextTablet]}>
                         Uploadez un cours et générez vos premières flashcards !
                     </Text>
                 </View>
@@ -67,7 +73,9 @@ const FlashcardsScreen = ({ navigation }) => {
                     data={flashcardSets}
                     renderItem={renderFlashcardSet}
                     keyExtractor={(item) => item.id.toString()}
-                    contentContainerStyle={styles.list}
+                    contentContainerStyle={[styles.list, isTablet && styles.listTablet]}
+                    numColumns={isTablet ? 2 : 1}
+                    key={isTablet ? 'tablet' : 'phone'}
                 />
             )}
         </View>
@@ -77,31 +85,44 @@ const FlashcardsScreen = ({ navigation }) => {
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: '#f5f7fa',
+        backgroundColor: '#f8f9fa',
     },
     header: {
-        backgroundColor: '#764ba2',
-        padding: 20,
-        paddingTop: 60,
+        backgroundColor: '#f8f9fa',
+        paddingHorizontal: '5%',
+        paddingTop: 55,
+        paddingBottom: 15,
     },
     headerTitle: {
-        fontSize: 24,
-        fontWeight: 'bold',
-        color: '#fff',
+        fontSize: 22,
+        fontWeight: '600',
+        color: '#1a1a2e',
+    },
+    headerTitleTablet: {
+        fontSize: 28,
+        textAlign: 'center',
     },
     list: {
-        padding: 20,
+        paddingHorizontal: '5%',
+        paddingTop: 10,
+        paddingBottom: 20,
+    },
+    listTablet: {
+        paddingHorizontal: '3%',
     },
     flashcardCard: {
         backgroundColor: '#fff',
         borderRadius: 12,
         padding: 15,
         marginBottom: 15,
+        marginHorizontal: SCREEN_WIDTH >= 768 ? 8 : 0,
+        flex: SCREEN_WIDTH >= 768 ? 1 : undefined,
+        maxWidth: SCREEN_WIDTH >= 768 ? '48%' : '100%',
         shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.1,
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.05,
         shadowRadius: 4,
-        elevation: 3,
+        elevation: 2,
     },
     cardHeader: {
         flexDirection: 'row',
@@ -111,14 +132,14 @@ const styles = StyleSheet.create({
     },
     cardTitle: {
         fontSize: 16,
-        fontWeight: 'bold',
-        color: '#333',
+        fontWeight: '600',
+        color: '#1a1a2e',
         flex: 1,
     },
     cardCount: {
         fontSize: 12,
-        color: '#764ba2',
-        backgroundColor: '#f3e8ff',
+        color: '#1a1a2e',
+        backgroundColor: '#e8eaed',
         paddingHorizontal: 10,
         paddingVertical: 4,
         borderRadius: 12,
@@ -132,22 +153,30 @@ const styles = StyleSheet.create({
         flex: 1,
         justifyContent: 'center',
         alignItems: 'center',
-        padding: 40,
+        paddingHorizontal: '10%',
     },
     emptyIcon: {
-        fontSize: 80,
+        fontSize: 60,
         marginBottom: 20,
+        color: '#1a1a2e',
+        fontWeight: '700',
     },
     emptyText: {
         fontSize: 18,
-        fontWeight: 'bold',
-        color: '#333',
+        fontWeight: '600',
+        color: '#1a1a2e',
         marginBottom: 8,
+    },
+    emptyTextTablet: {
+        fontSize: 22,
     },
     emptySubtext: {
         fontSize: 14,
         color: '#666',
         textAlign: 'center',
+    },
+    emptySubtextTablet: {
+        fontSize: 16,
     },
 });
 

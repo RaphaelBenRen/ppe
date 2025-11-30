@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const { pool } = require('../config/database');
+const { supabase } = require('../config/database');
 const authMiddleware = require('../middleware/auth');
 const { parseDocument, cleanText, chunkText } = require('../utils/documentParser');
 const { generateQCM } = require('../utils/claude');
@@ -20,12 +20,15 @@ router.post('/generate-from-course/:courseId', authMiddleware, async (req, res) 
         }
 
         // Récupérer le cours
-        const [courses] = await pool.query(`
-            SELECT * FROM courses
-            WHERE id = ? AND uploaded_by = ?
-        `, [courseId, req.user.userId]);
+        const { data: courses, error: courseError } = await supabase
+            .from('courses')
+            .select('*')
+            .eq('id', courseId)
+            .eq('uploaded_by', req.user.userId);
 
-        if (courses.length === 0) {
+        if (courseError) throw courseError;
+
+        if (!courses || courses.length === 0) {
             return res.status(404).json({
                 success: false,
                 message: 'Cours non trouvé'
@@ -40,7 +43,7 @@ router.post('/generate-from-course/:courseId', authMiddleware, async (req, res) 
 
         // Si le texte est trop long, prendre un chunk
         const chunks = chunkText(textContent);
-        const contentToUse = chunks[0]; // Utiliser le premier chunk pour l'instant
+        const contentToUse = chunks[0];
 
         console.log(`Génération QCM - Longueur texte: ${contentToUse.length} caractères`);
 
@@ -53,25 +56,27 @@ router.post('/generate-from-course/:courseId', authMiddleware, async (req, res) 
         });
 
         // Sauvegarder le QCM dans la base de données
-        const [result] = await pool.query(`
-            INSERT INTO qcms
-            (user_id, titre, matiere, annee_cible, difficulte, nombre_questions, questions_data)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
-        `, [
-            req.user.userId,
-            `QCM - ${course.titre}`,
-            course.matiere,
-            course.annee_cible,
-            difficulte,
-            questions.length,
-            JSON.stringify(questions)
-        ]);
+        const { data: result, error: insertError } = await supabase
+            .from('qcms')
+            .insert({
+                user_id: req.user.userId,
+                titre: `QCM - ${course.titre}`,
+                matiere: course.matiere,
+                annee_cible: course.annee_cible,
+                difficulte,
+                nombre_questions: questions.length,
+                questions_data: questions
+            })
+            .select()
+            .single();
+
+        if (insertError) throw insertError;
 
         res.json({
             success: true,
             message: 'QCM généré avec succès !',
             data: {
-                qcmId: result.insertId,
+                qcmId: result.id,
                 titre: `QCM - ${course.titre}`,
                 nombreQuestions: questions.length,
                 questions
@@ -113,25 +118,27 @@ router.post('/generate-from-text', authMiddleware, async (req, res) => {
         });
 
         // Sauvegarder le QCM
-        const [result] = await pool.query(`
-            INSERT INTO qcms
-            (user_id, titre, matiere, annee_cible, difficulte, nombre_questions, questions_data)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
-        `, [
-            req.user.userId,
-            titre || `QCM - ${matiere}`,
-            matiere,
-            annee_cible || 'Ing1',
-            difficulte,
-            questions.length,
-            JSON.stringify(questions)
-        ]);
+        const { data: result, error: insertError } = await supabase
+            .from('qcms')
+            .insert({
+                user_id: req.user.userId,
+                titre: titre || `QCM - ${matiere}`,
+                matiere,
+                annee_cible: annee_cible || 'Ing1',
+                difficulte,
+                nombre_questions: questions.length,
+                questions_data: questions
+            })
+            .select()
+            .single();
+
+        if (insertError) throw insertError;
 
         res.json({
             success: true,
             message: 'QCM généré avec succès !',
             data: {
-                qcmId: result.insertId,
+                qcmId: result.id,
                 nombreQuestions: questions.length,
                 questions
             }
@@ -149,25 +156,17 @@ router.post('/generate-from-text', authMiddleware, async (req, res) => {
 // Route pour récupérer tous les QCMs de l'utilisateur
 router.get('/my-qcms', authMiddleware, async (req, res) => {
     try {
-        const [qcms] = await pool.query(`
-            SELECT
-                id,
-                titre,
-                matiere,
-                annee_cible,
-                difficulte,
-                nombre_questions,
-                score,
-                completed,
-                created_at
-            FROM qcms
-            WHERE user_id = ?
-            ORDER BY created_at DESC
-        `, [req.user.userId]);
+        const { data: qcms, error } = await supabase
+            .from('qcms')
+            .select('id, titre, matiere, annee_cible, difficulte, nombre_questions, score, completed, created_at')
+            .eq('user_id', req.user.userId)
+            .order('created_at', { ascending: false });
+
+        if (error) throw error;
 
         res.json({
             success: true,
-            data: qcms
+            data: qcms || []
         });
 
     } catch (error) {
@@ -182,12 +181,15 @@ router.get('/my-qcms', authMiddleware, async (req, res) => {
 // Route pour récupérer un QCM spécifique avec ses questions
 router.get('/:id', authMiddleware, async (req, res) => {
     try {
-        const [qcms] = await pool.query(`
-            SELECT * FROM qcms
-            WHERE id = ? AND user_id = ?
-        `, [req.params.id, req.user.userId]);
+        const { data: qcms, error } = await supabase
+            .from('qcms')
+            .select('*')
+            .eq('id', req.params.id)
+            .eq('user_id', req.user.userId);
 
-        if (qcms.length === 0) {
+        if (error) throw error;
+
+        if (!qcms || qcms.length === 0) {
             return res.status(404).json({
                 success: false,
                 message: 'QCM non trouvé'
@@ -195,7 +197,6 @@ router.get('/:id', authMiddleware, async (req, res) => {
         }
 
         const qcm = qcms[0];
-        qcm.questions_data = JSON.parse(qcm.questions_data);
 
         res.json({
             success: true,
@@ -214,15 +215,18 @@ router.get('/:id', authMiddleware, async (req, res) => {
 // Route pour soumettre les réponses d'un QCM
 router.post('/:id/submit', authMiddleware, async (req, res) => {
     try {
-        const { answers, tempsEcoule } = req.body; // { "0": "A", "1": "C", ... }
+        const { answers, tempsEcoule } = req.body;
 
         // Récupérer le QCM
-        const [qcms] = await pool.query(`
-            SELECT * FROM qcms
-            WHERE id = ? AND user_id = ?
-        `, [req.params.id, req.user.userId]);
+        const { data: qcms, error: qcmError } = await supabase
+            .from('qcms')
+            .select('*')
+            .eq('id', req.params.id)
+            .eq('user_id', req.user.userId);
 
-        if (qcms.length === 0) {
+        if (qcmError) throw qcmError;
+
+        if (!qcms || qcms.length === 0) {
             return res.status(404).json({
                 success: false,
                 message: 'QCM non trouvé'
@@ -230,7 +234,7 @@ router.post('/:id/submit', authMiddleware, async (req, res) => {
         }
 
         const qcm = qcms[0];
-        const questions = JSON.parse(qcm.questions_data);
+        const questions = qcm.questions_data;
 
         // Calculer le score
         let correctAnswers = 0;
@@ -257,34 +261,41 @@ router.post('/:id/submit', authMiddleware, async (req, res) => {
         const pourcentage = (correctAnswers / questions.length) * 100;
 
         // Sauvegarder cette tentative dans l'historique
-        const [attemptResult] = await pool.query(`
-            INSERT INTO qcm_attempts
-            (qcm_id, user_id, answers_data, score, pourcentage, nombre_correctes, nombre_incorrectes, temps_ecoule)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-        `, [
-            req.params.id,
-            req.user.userId,
-            JSON.stringify(results),
-            Math.round(pourcentage),
-            pourcentage,
-            correctAnswers,
-            incorrectAnswers,
-            tempsEcoule || null
-        ]);
+        const { data: attemptResult, error: attemptError } = await supabase
+            .from('qcm_attempts')
+            .insert({
+                qcm_id: parseInt(req.params.id),
+                user_id: req.user.userId,
+                answers_data: results,
+                score: Math.round(pourcentage),
+                pourcentage,
+                nombre_correctes: correctAnswers,
+                nombre_incorrectes: incorrectAnswers,
+                temps_ecoule: tempsEcoule || null
+            })
+            .select()
+            .single();
+
+        if (attemptError) throw attemptError;
 
         // Mettre à jour le meilleur score du QCM si nécessaire
         if (!qcm.score || pourcentage > qcm.score) {
-            await pool.query(`
-                UPDATE qcms
-                SET score = ?, completed = TRUE, completed_at = NOW()
-                WHERE id = ?
-            `, [Math.round(pourcentage), req.params.id]);
+            const { error: updateError } = await supabase
+                .from('qcms')
+                .update({
+                    score: Math.round(pourcentage),
+                    completed: true,
+                    completed_at: new Date().toISOString()
+                })
+                .eq('id', req.params.id);
+
+            if (updateError) throw updateError;
         }
 
         res.json({
             success: true,
             data: {
-                attemptId: attemptResult.insertId,
+                attemptId: attemptResult.id,
                 score: Math.round(pourcentage),
                 pourcentage,
                 correctAnswers,
@@ -307,23 +318,18 @@ router.post('/:id/submit', authMiddleware, async (req, res) => {
 // Route pour récupérer l'historique des tentatives d'un QCM
 router.get('/:id/attempts', authMiddleware, async (req, res) => {
     try {
-        const [attempts] = await pool.query(`
-            SELECT
-                id,
-                score,
-                pourcentage,
-                nombre_correctes,
-                nombre_incorrectes,
-                temps_ecoule,
-                completed_at
-            FROM qcm_attempts
-            WHERE qcm_id = ? AND user_id = ?
-            ORDER BY completed_at DESC
-        `, [req.params.id, req.user.userId]);
+        const { data: attempts, error } = await supabase
+            .from('qcm_attempts')
+            .select('id, score, pourcentage, nombre_correctes, nombre_incorrectes, temps_ecoule, completed_at')
+            .eq('qcm_id', req.params.id)
+            .eq('user_id', req.user.userId)
+            .order('completed_at', { ascending: false });
+
+        if (error) throw error;
 
         res.json({
             success: true,
-            data: attempts
+            data: attempts || []
         });
 
     } catch (error) {
@@ -338,12 +344,16 @@ router.get('/:id/attempts', authMiddleware, async (req, res) => {
 // Route pour récupérer le détail d'une tentative spécifique
 router.get('/:id/attempts/:attemptId', authMiddleware, async (req, res) => {
     try {
-        const [attempts] = await pool.query(`
-            SELECT * FROM qcm_attempts
-            WHERE id = ? AND qcm_id = ? AND user_id = ?
-        `, [req.params.attemptId, req.params.id, req.user.userId]);
+        const { data: attempts, error } = await supabase
+            .from('qcm_attempts')
+            .select('*')
+            .eq('id', req.params.attemptId)
+            .eq('qcm_id', req.params.id)
+            .eq('user_id', req.user.userId);
 
-        if (attempts.length === 0) {
+        if (error) throw error;
+
+        if (!attempts || attempts.length === 0) {
             return res.status(404).json({
                 success: false,
                 message: 'Tentative non trouvée'
@@ -351,7 +361,6 @@ router.get('/:id/attempts/:attemptId', authMiddleware, async (req, res) => {
         }
 
         const attempt = attempts[0];
-        attempt.answers_data = JSON.parse(attempt.answers_data);
 
         res.json({
             success: true,
@@ -370,10 +379,13 @@ router.get('/:id/attempts/:attemptId', authMiddleware, async (req, res) => {
 // Route pour supprimer un QCM
 router.delete('/:id', authMiddleware, async (req, res) => {
     try {
-        await pool.query(`
-            DELETE FROM qcms
-            WHERE id = ? AND user_id = ?
-        `, [req.params.id, req.user.userId]);
+        const { error } = await supabase
+            .from('qcms')
+            .delete()
+            .eq('id', req.params.id)
+            .eq('user_id', req.user.userId);
+
+        if (error) throw error;
 
         res.json({
             success: true,

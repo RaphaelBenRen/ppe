@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const { pool } = require('../config/database');
+const { supabase } = require('../config/database');
 const authMiddleware = require('../middleware/auth');
 const { parseDocument, cleanText, chunkText } = require('../utils/documentParser');
 const { generateFlashcards } = require('../utils/claude');
@@ -19,12 +19,15 @@ router.post('/generate-from-course/:courseId', authMiddleware, async (req, res) 
         }
 
         // Récupérer le cours
-        const [courses] = await pool.query(`
-            SELECT * FROM courses
-            WHERE id = ? AND uploaded_by = ?
-        `, [courseId, req.user.userId]);
+        const { data: courses, error: courseError } = await supabase
+            .from('courses')
+            .select('*')
+            .eq('id', courseId)
+            .eq('uploaded_by', req.user.userId);
 
-        if (courses.length === 0) {
+        if (courseError) throw courseError;
+
+        if (!courses || courses.length === 0) {
             return res.status(404).json({
                 success: false,
                 message: 'Cours non trouvé'
@@ -51,23 +54,25 @@ router.post('/generate-from-course/:courseId', authMiddleware, async (req, res) 
         });
 
         // Sauvegarder dans la base de données
-        const [result] = await pool.query(`
-            INSERT INTO flashcards
-            (user_id, titre, matiere, annee_cible, cards_data)
-            VALUES (?, ?, ?, ?, ?)
-        `, [
-            req.user.userId,
-            `Flashcards - ${course.titre}`,
-            course.matiere,
-            course.annee_cible,
-            JSON.stringify(cards)
-        ]);
+        const { data: result, error: insertError } = await supabase
+            .from('flashcards')
+            .insert({
+                user_id: req.user.userId,
+                titre: `Flashcards - ${course.titre}`,
+                matiere: course.matiere,
+                annee_cible: course.annee_cible,
+                cards_data: cards
+            })
+            .select()
+            .single();
+
+        if (insertError) throw insertError;
 
         res.json({
             success: true,
             message: 'Flashcards générées avec succès !',
             data: {
-                flashcardId: result.insertId,
+                flashcardId: result.id,
                 titre: `Flashcards - ${course.titre}`,
                 nombreCartes: cards.length,
                 cards
@@ -86,21 +91,17 @@ router.post('/generate-from-course/:courseId', authMiddleware, async (req, res) 
 // Route pour récupérer toutes les flashcards de l'utilisateur
 router.get('/my-flashcards', authMiddleware, async (req, res) => {
     try {
-        const [flashcards] = await pool.query(`
-            SELECT
-                id,
-                titre,
-                matiere,
-                annee_cible,
-                created_at
-            FROM flashcards
-            WHERE user_id = ?
-            ORDER BY created_at DESC
-        `, [req.user.userId]);
+        const { data: flashcards, error } = await supabase
+            .from('flashcards')
+            .select('id, titre, matiere, annee_cible, created_at')
+            .eq('user_id', req.user.userId)
+            .order('created_at', { ascending: false });
+
+        if (error) throw error;
 
         res.json({
             success: true,
-            data: flashcards
+            data: flashcards || []
         });
 
     } catch (error) {
@@ -115,24 +116,24 @@ router.get('/my-flashcards', authMiddleware, async (req, res) => {
 // Route pour récupérer un set de flashcards spécifique
 router.get('/:id', authMiddleware, async (req, res) => {
     try {
-        const [flashcards] = await pool.query(`
-            SELECT * FROM flashcards
-            WHERE id = ? AND user_id = ?
-        `, [req.params.id, req.user.userId]);
+        const { data: flashcards, error } = await supabase
+            .from('flashcards')
+            .select('*')
+            .eq('id', req.params.id)
+            .eq('user_id', req.user.userId);
 
-        if (flashcards.length === 0) {
+        if (error) throw error;
+
+        if (!flashcards || flashcards.length === 0) {
             return res.status(404).json({
                 success: false,
                 message: 'Flashcards non trouvées'
             });
         }
 
-        const flashcard = flashcards[0];
-        flashcard.cards_data = JSON.parse(flashcard.cards_data);
-
         res.json({
             success: true,
-            data: flashcard
+            data: flashcards[0]
         });
 
     } catch (error) {
@@ -147,10 +148,13 @@ router.get('/:id', authMiddleware, async (req, res) => {
 // Route pour supprimer un set de flashcards
 router.delete('/:id', authMiddleware, async (req, res) => {
     try {
-        await pool.query(`
-            DELETE FROM flashcards
-            WHERE id = ? AND user_id = ?
-        `, [req.params.id, req.user.userId]);
+        const { error } = await supabase
+            .from('flashcards')
+            .delete()
+            .eq('id', req.params.id)
+            .eq('user_id', req.user.userId);
+
+        if (error) throw error;
 
         res.json({
             success: true,

@@ -1,37 +1,35 @@
 {
-  "name": "ppe-ece-platform",
+  "name": "ppe-ece-mobile",
   "version": "1.0.0",
-  "description": "Plateforme d'apprentissage ECE avec QCMs et Flashcards IA",
+  "description": "Application mobile ECE avec QCMs et Flashcards IA",
   "main": "index.js",
   "scripts": {
-    "start": "node backend/server.js",
-    "dev": "concurrently \"npm run server\" \"npm run client\"",
-    "server": "nodemon backend/server.js",
-    "client": "npm start --prefix frontend",
-    "install-all": "npm install && cd frontend && npm install && cd .."
+    "start": "concurrently \"npm run server\" \"npm run mobile\"",
+    "server": "node backend/server.js",
+    "mobile": "cd mobile-app && npx expo start"
   },
   "keywords": [
     "ece",
     "education",
     "ai",
     "qcm",
-    "flashcards"
+    "flashcards",
+    "react-native",
+    "expo"
   ],
   "author": "",
   "license": "ISC",
   "dependencies": {
     "@anthropic-ai/sdk": "^0.69.0",
-    "axios": "^1.6.2",
+    "@supabase/supabase-js": "^2.86.0",
     "bcryptjs": "^2.4.3",
-    "chromadb": "^1.7.3",
     "cors": "^2.8.5",
     "dotenv": "^16.3.1",
     "express": "^4.18.2",
     "jsonwebtoken": "^9.0.2",
     "mammoth": "^1.11.0",
     "multer": "^1.4.5-lts.1",
-    "mysql2": "^3.6.5",
-    "openai": "^4.104.0",
+    "openai": "^6.9.1",
     "pdf-parse": "^1.1.1"
   },
   "devDependencies": {

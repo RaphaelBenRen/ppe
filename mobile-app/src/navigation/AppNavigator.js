@@ -2,7 +2,7 @@ import React from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import { createStackNavigator } from '@react-navigation/stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
-import { ActivityIndicator, View } from 'react-native';
+import { ActivityIndicator, View, Text, useWindowDimensions } from 'react-native';
 
 import { useAuth } from '../context/AuthContext';
 
@@ -18,18 +18,59 @@ import QCMDetailScreen from '../screens/QCMDetailScreen';
 import FlashcardDetailScreen from '../screens/FlashcardDetailScreen';
 import QCMHistoryScreen from '../screens/QCMHistoryScreen';
 import QCMAttemptDetailScreen from '../screens/QCMAttemptDetailScreen';
+import SettingsScreen from '../screens/SettingsScreen';
 
 const Stack = createStackNavigator();
 const Tab = createBottomTabNavigator();
 
+// Composant pour les icônes de tab
+const TabIcon = ({ name, focused, color }) => {
+    const icons = {
+        home: '⌂',
+        qcm: '✓',
+        flash: '◇',
+    };
+    return (
+        <Text style={{
+            fontSize: 20,
+            color,
+            fontWeight: focused ? '700' : '400',
+        }}>
+            {icons[name]}
+        </Text>
+    );
+};
+
 // Tab Navigator pour l'écran principal
 const MainTabs = () => {
+    const { width } = useWindowDimensions();
+    const isTablet = width >= 768;
+
     return (
         <Tab.Navigator
             screenOptions={{
-                tabBarActiveTintColor: '#667eea',
-                tabBarInactiveTintColor: 'gray',
+                tabBarActiveTintColor: '#1a1a2e',
+                tabBarInactiveTintColor: '#b0b0b0',
                 headerShown: false,
+                tabBarStyle: {
+                    backgroundColor: '#f8f9fa',
+                    borderTopWidth: 0,
+                    elevation: 0,
+                    shadowOpacity: 0,
+                    paddingBottom: isTablet ? 20 : 25,
+                    paddingTop: isTablet ? 10 : 8,
+                    paddingHorizontal: isTablet ? '15%' : 0,
+                    height: isTablet ? 85 : 80,
+                },
+                tabBarLabelStyle: {
+                    fontSize: isTablet ? 13 : 11,
+                    fontWeight: '500',
+                    marginTop: 4,
+                    marginBottom: 2,
+                },
+                tabBarItemStyle: {
+                    paddingVertical: 4,
+                },
             }}
         >
             <Tab.Screen
@@ -37,10 +78,8 @@ const MainTabs = () => {
                 component={DashboardScreen}
                 options={{
                     tabBarLabel: 'Accueil',
-                    tabBarIcon: ({ color, size }) => (
-                        <View>
-                            {/* Vous pouvez ajouter des icônes ici */}
-                        </View>
+                    tabBarIcon: ({ focused, color }) => (
+                        <TabIcon name="home" focused={focused} color={color} />
                     ),
                 }}
             />
@@ -49,6 +88,9 @@ const MainTabs = () => {
                 component={QCMScreen}
                 options={{
                     tabBarLabel: 'QCM',
+                    tabBarIcon: ({ focused, color }) => (
+                        <TabIcon name="qcm" focused={focused} color={color} />
+                    ),
                 }}
             />
             <Tab.Screen
@@ -56,6 +98,9 @@ const MainTabs = () => {
                 component={FlashcardsScreen}
                 options={{
                     tabBarLabel: 'Flashcards',
+                    tabBarIcon: ({ focused, color }) => (
+                        <TabIcon name="flash" focused={focused} color={color} />
+                    ),
                 }}
             />
         </Tab.Navigator>
@@ -67,8 +112,8 @@ const AppNavigator = () => {
 
     if (loading) {
         return (
-            <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-                <ActivityIndicator size="large" color="#667eea" />
+            <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#f8f9fa' }}>
+                <ActivityIndicator size="large" color="#1a1a2e" />
             </View>
         );
     }
@@ -94,6 +139,7 @@ const AppNavigator = () => {
                         <Stack.Screen name="FlashcardDetail" component={FlashcardDetailScreen} />
                         <Stack.Screen name="QCMHistory" component={QCMHistoryScreen} />
                         <Stack.Screen name="QCMAttemptDetail" component={QCMAttemptDetailScreen} />
+                        <Stack.Screen name="Settings" component={SettingsScreen} />
                     </React.Fragment>
                 )}
             </Stack.Navigator>

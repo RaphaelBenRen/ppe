@@ -23,8 +23,15 @@ const CourseViewerScreen = ({ route, navigation }) => {
         setLoading(true);
         try {
             const response = await coursesAPI.getCourseContent(courseId);
-            if (response.success) {
+            console.log('Response received:', response.success);
+            if (response.success && response.data) {
+                // S'assurer que le contenu existe
+                if (!response.data.content || response.data.content.trim() === '') {
+                    Alert.alert('Attention', 'Ce cours ne contient pas de texte lisible.');
+                }
                 setCourseData(response.data);
+            } else {
+                Alert.alert('Erreur', 'Impossible de charger le contenu du cours');
             }
         } catch (error) {
             Alert.alert('Erreur', error.message || 'Erreur lors du chargement du cours');
@@ -64,16 +71,22 @@ const CourseViewerScreen = ({ route, navigation }) => {
                     style={styles.backButton}
                     onPress={() => navigation.goBack()}
                 >
-                    <Text style={styles.backButtonText}>← Retour</Text>
+                    <Text style={styles.backButtonText}>‹</Text>
                 </TouchableOpacity>
                 <View style={styles.headerInfo}>
-                    <Text style={styles.headerTitle}>{courseData.titre}</Text>
+                    <Text style={styles.headerTitle} numberOfLines={1}>{courseData.titre}</Text>
                     <Text style={styles.headerSubtitle}>{courseData.matiere}</Text>
                 </View>
             </View>
 
-            <ScrollView style={styles.content} contentContainerStyle={styles.contentContainer}>
-                <Text style={styles.courseText}>{courseData.content}</Text>
+            <ScrollView
+                style={styles.content}
+                contentContainerStyle={styles.contentContainer}
+                showsVerticalScrollIndicator={true}
+            >
+                <Text style={styles.courseText} selectable={true}>
+                    {courseData.content || 'Aucun contenu disponible pour ce cours.'}
+                </Text>
             </ScrollView>
         </View>
     );
@@ -82,34 +95,34 @@ const CourseViewerScreen = ({ route, navigation }) => {
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: '#f5f7fa',
+        backgroundColor: '#f8f9fa',
     },
     loadingContainer: {
         flex: 1,
         justifyContent: 'center',
         alignItems: 'center',
-        backgroundColor: '#f5f7fa',
+        backgroundColor: '#f8f9fa',
     },
     loadingText: {
         marginTop: 15,
-        fontSize: 16,
-        color: '#666',
+        fontSize: 14,
+        color: '#8a8a8a',
     },
     errorContainer: {
         flex: 1,
         justifyContent: 'center',
         alignItems: 'center',
-        backgroundColor: '#f5f7fa',
+        backgroundColor: '#f8f9fa',
         padding: 20,
     },
     errorText: {
-        fontSize: 16,
+        fontSize: 15,
         color: '#666',
         marginBottom: 20,
         textAlign: 'center',
     },
     retryButton: {
-        backgroundColor: '#667eea',
+        backgroundColor: '#1a1a2e',
         paddingHorizontal: 30,
         paddingVertical: 12,
         borderRadius: 10,
@@ -120,32 +133,44 @@ const styles = StyleSheet.create({
         fontWeight: '600',
     },
     header: {
-        backgroundColor: '#667eea',
-        paddingTop: 60,
-        paddingBottom: 20,
+        backgroundColor: '#f8f9fa',
+        paddingTop: 55,
+        paddingBottom: 15,
         paddingHorizontal: 20,
+        flexDirection: 'row',
+        alignItems: 'center',
     },
     backButton: {
-        marginBottom: 15,
+        width: 40,
+        height: 40,
+        borderRadius: 20,
+        backgroundColor: '#fff',
+        justifyContent: 'center',
+        alignItems: 'center',
+        marginRight: 15,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.05,
+        shadowRadius: 4,
+        elevation: 1,
     },
     backButtonText: {
-        color: '#fff',
-        fontSize: 16,
-        fontWeight: '600',
+        color: '#1a1a2e',
+        fontSize: 18,
+        fontWeight: '500',
     },
     headerInfo: {
-        marginBottom: 10,
+        flex: 1,
     },
     headerTitle: {
-        fontSize: 24,
-        fontWeight: 'bold',
-        color: '#fff',
-        marginBottom: 5,
+        fontSize: 17,
+        fontWeight: '600',
+        color: '#1a1a2e',
+        marginBottom: 2,
     },
     headerSubtitle: {
-        fontSize: 14,
-        color: '#fff',
-        opacity: 0.9,
+        fontSize: 13,
+        color: '#8a8a8a',
     },
     content: {
         flex: 1,
