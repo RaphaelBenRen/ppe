@@ -482,7 +482,7 @@ const styles = StyleSheet.create({
         marginBottom: 30,
     },
     mainButton: {
-        backgroundColor: '#1a1a2e',
+        backgroundColor: '#e8eaed',
         paddingVertical: 20,
         paddingHorizontal: 25,
         borderRadius: 15,
@@ -493,14 +493,14 @@ const styles = StyleSheet.create({
     secondaryButton: {
         backgroundColor: '#fff',
         borderWidth: 2,
-        borderColor: '#1a1a2e',
+        borderColor: '#e8eaed',
     },
     mainButtonIcon: {
         fontSize: 24,
         marginRight: 12,
     },
     mainButtonText: {
-        color: '#1a1a2e',
+        color: '#333',
         fontSize: 16,
         fontWeight: '600',
     },

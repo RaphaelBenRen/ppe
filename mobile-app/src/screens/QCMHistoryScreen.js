@@ -53,10 +53,8 @@ const QCMHistoryScreen = ({ route, navigation }) => {
         return `${mins}m ${secs}s`;
     };
 
-    const getScoreColor = (score) => {
-        if (score >= 80) return '#4caf50';
-        if (score >= 60) return '#ff9800';
-        return '#f44336';
+    const getScoreColor = () => {
+        return '#e8eaed';
     };
 
     const viewAttemptDetail = (attemptId) => {
@@ -108,7 +106,7 @@ const QCMHistoryScreen = ({ route, navigation }) => {
                                     <Text style={styles.statLabel}>Tentatives</Text>
                                 </View>
                                 <View style={styles.statItem}>
-                                    <Text style={[styles.statValue, { color: getScoreColor(Math.max(...attempts.map(a => a.score))) }]}>
+                                    <Text style={styles.statValue}>
                                         {Math.max(...attempts.map(a => a.score))}%
                                     </Text>
                                     <Text style={styles.statLabel}>Meilleur score</Text>
@@ -379,7 +377,7 @@ const styles = StyleSheet.create({
         elevation: 3,
     },
     scoreLabel: {
-        color: '#fff',
+        color: '#333',
         fontSize: 10,
         fontWeight: 'bold',
     },
@@ -432,7 +430,7 @@ const styles = StyleSheet.create({
         borderRadius: 12,
     },
     scoreText: {
-        color: '#fff',
+        color: '#333',
         fontSize: 14,
         fontWeight: 'bold',
     },

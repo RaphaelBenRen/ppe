@@ -300,17 +300,8 @@ const QCMDetailScreen = ({ route, navigation }) => {
     );
 };
 
-const getDifficultyColor = (difficulty) => {
-    switch (difficulty?.toLowerCase()) {
-        case 'facile':
-            return { backgroundColor: '#4caf50' };
-        case 'moyen':
-            return { backgroundColor: '#ff9800' };
-        case 'difficile':
-            return { backgroundColor: '#f44336' };
-        default:
-            return { backgroundColor: '#999' };
-    }
+const getDifficultyColor = () => {
+    return { backgroundColor: '#e8eaed' };
 };
 
 const styles = StyleSheet.create({
@@ -419,7 +410,7 @@ const styles = StyleSheet.create({
         borderRadius: 12,
     },
     difficultyText: {
-        color: '#fff',
+        color: '#333',
         fontSize: 11,
         fontWeight: '600',
         textTransform: 'uppercase',

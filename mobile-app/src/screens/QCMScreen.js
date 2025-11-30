@@ -70,17 +70,8 @@ const QCMScreen = ({ navigation }) => {
         </View>
     );
 
-    const getDifficultyColor = (difficulte) => {
-        switch (difficulte) {
-            case 'facile':
-                return { backgroundColor: '#4caf50' };
-            case 'moyen':
-                return { backgroundColor: '#ff9800' };
-            case 'difficile':
-                return { backgroundColor: '#f44336' };
-            default:
-                return { backgroundColor: '#999' };
-        }
+    const getDifficultyColor = () => {
+        return { backgroundColor: '#e8eaed' };
     };
 
     return (
@@ -173,7 +164,7 @@ const styles = StyleSheet.create({
         borderRadius: 12,
     },
     badgeText: {
-        color: '#fff',
+        color: '#333',
         fontSize: 11,
         fontWeight: '600',
         textTransform: 'uppercase',
