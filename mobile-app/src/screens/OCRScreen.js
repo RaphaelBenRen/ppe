@@ -10,18 +10,22 @@ import {
     Alert,
     TextInput,
     useWindowDimensions,
+    Modal,
 } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { coursesAPI, onboardingAPI } from '../utils/api';
 import { useData } from '../context/DataContext';
+import ImageCropper from '../components/ImageCropper';
 
 const OCRScreen = ({ navigation }) => {
     const { refreshCourses } = useData();
     const [selectedImage, setSelectedImage] = useState(null);
+    const [croppedImage, setCroppedImage] = useState(null);
+    const [showCropper, setShowCropper] = useState(false);
     const [extractedText, setExtractedText] = useState('');
     const [loading, setLoading] = useState(false);
     const [saving, setSaving] = useState(false);
-    const [step, setStep] = useState('select'); // 'select', 'preview', 'edit', 'save'
+    const [step, setStep] = useState('select'); // 'select', 'crop', 'preview', 'edit', 'save'
 
     // Champs pour sauvegarder le cours
     const [titre, setTitre] = useState('');
@@ -68,7 +72,7 @@ const OCRScreen = ({ navigation }) => {
 
         if (!result.canceled) {
             setSelectedImage(result.assets[0]);
-            setStep('preview');
+            setShowCropper(true);
         }
     };
 
@@ -87,16 +91,28 @@ const OCRScreen = ({ navigation }) => {
 
         if (!result.canceled) {
             setSelectedImage(result.assets[0]);
-            setStep('preview');
+            setShowCropper(true);
         }
     };
 
+    const handleCropComplete = (result) => {
+        setCroppedImage(result);
+        setShowCropper(false);
+        setStep('preview');
+    };
+
+    const handleCropCancel = () => {
+        setShowCropper(false);
+        setSelectedImage(null);
+    };
+
     const extractText = async () => {
-        if (!selectedImage) return;
+        const imageToUse = croppedImage || selectedImage;
+        if (!imageToUse) return;
 
         setLoading(true);
         try {
-            const response = await coursesAPI.extractTextFromImage(selectedImage.uri);
+            const response = await coursesAPI.extractTextFromImage(imageToUse.uri);
 
             if (response.success) {
                 setExtractedText(response.data.text);
@@ -145,6 +161,7 @@ const OCRScreen = ({ navigation }) => {
 
     const resetAll = () => {
         setSelectedImage(null);
+        setCroppedImage(null);
         setExtractedText('');
         setTitre('');
         setDescription('');
@@ -183,17 +200,28 @@ const OCRScreen = ({ navigation }) => {
         </View>
     );
 
-    const renderPreviewStep = () => (
-        <View style={styles.previewContainer}>
-            <Text style={styles.stepTitle}>Aperçu de l'image</Text>
+    const renderPreviewStep = () => {
+        const imageToShow = croppedImage || selectedImage;
+        return (
+            <View style={styles.previewContainer}>
+                <Text style={styles.stepTitle}>Aperçu de l'image</Text>
 
-            {selectedImage && (
-                <Image
-                    source={{ uri: selectedImage.uri }}
-                    style={styles.previewImage}
-                    resizeMode="contain"
-                />
-            )}
+                {imageToShow && (
+                    <TouchableOpacity
+                        style={styles.previewImageContainer}
+                        onPress={() => setShowCropper(true)}
+                        activeOpacity={0.8}
+                    >
+                        <Image
+                            source={{ uri: imageToShow.uri }}
+                            style={styles.previewImage}
+                            resizeMode="contain"
+                        />
+                        <View style={styles.recropOverlay}>
+                            <Text style={styles.recropText}>Appuyez pour recadrer</Text>
+                        </View>
+                    </TouchableOpacity>
+                )}
 
             <View style={styles.actionButtons}>
                 <TouchableOpacity
@@ -222,8 +250,9 @@ const OCRScreen = ({ navigation }) => {
                     <Text style={styles.loadingSubtext}>Cela peut prendre quelques secondes</Text>
                 </View>
             )}
-        </View>
-    );
+            </View>
+        );
+    };
 
     const renderEditStep = () => (
         <ScrollView style={styles.editContainer} showsVerticalScrollIndicator={false}>
@@ -396,6 +425,23 @@ const OCRScreen = ({ navigation }) => {
                 {step === 'edit' && renderEditStep()}
                 {step === 'save' && renderSaveStep()}
             </View>
+
+            {/* Modal de recadrage */}
+            <Modal
+                visible={showCropper}
+                animationType="slide"
+                statusBarTranslucent
+            >
+                {selectedImage && (
+                    <ImageCropper
+                        imageUri={selectedImage.uri}
+                        imageWidth={selectedImage.width}
+                        imageHeight={selectedImage.height}
+                        onCropComplete={handleCropComplete}
+                        onCancel={handleCropCancel}
+                    />
+                )}
+            </Modal>
         </View>
     );
 };
@@ -533,11 +579,31 @@ const styles = StyleSheet.create({
         color: '#1a1a2e',
         marginBottom: 15,
     },
+    previewImageContainer: {
+        flex: 1,
+        marginBottom: 15,
+        position: 'relative',
+    },
     previewImage: {
         flex: 1,
         borderRadius: 12,
         backgroundColor: '#fff',
-        marginBottom: 15,
+    },
+    recropOverlay: {
+        position: 'absolute',
+        bottom: 10,
+        left: 0,
+        right: 0,
+        alignItems: 'center',
+    },
+    recropText: {
+        backgroundColor: 'rgba(0, 0, 0, 0.6)',
+        color: '#fff',
+        paddingHorizontal: 15,
+        paddingVertical: 8,
+        borderRadius: 20,
+        fontSize: 13,
+        fontWeight: '500',
     },
     actionButtons: {
         flexDirection: 'row',

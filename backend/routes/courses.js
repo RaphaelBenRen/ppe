@@ -363,7 +363,7 @@ router.get('/:id/content', authMiddleware, async (req, res) => {
     try {
         const { data: courses, error } = await supabase
             .from('courses')
-            .select('file_path, titre, matiere, file_type')
+            .select('file_path, titre, matiere, file_type, edited_content_path')
             .eq('id', req.params.id)
             .eq('uploaded_by', req.user.userId);
 
@@ -377,10 +377,24 @@ router.get('/:id/content', authMiddleware, async (req, res) => {
         }
 
         const course = courses[0];
+        let content;
 
-        // Parser le fichier
-        console.log('📖 Parsing du cours:', course.titre);
-        const content = await parseDocument(course.file_path);
+        // Si un contenu édité existe, l'utiliser en priorité
+        if (course.edited_content_path) {
+            try {
+                console.log('📖 Lecture du contenu édité:', course.titre);
+                content = await fs.readFile(course.edited_content_path, 'utf-8');
+            } catch (readError) {
+                // Si le fichier édité n'existe plus, parser l'original
+                console.log('📖 Fichier édité non trouvé, parsing original:', course.titre);
+                content = await parseDocument(course.file_path);
+            }
+        } else {
+            // Parser le fichier original
+            console.log('📖 Parsing du cours:', course.titre);
+            content = await parseDocument(course.file_path);
+        }
+
         const cleanedContent = content.trim();
 
         res.json({
@@ -478,6 +492,83 @@ router.post('/:id/highlights', authMiddleware, async (req, res) => {
         res.status(500).json({
             success: false,
             message: 'Erreur lors de la sauvegarde des surlignages'
+        });
+    }
+});
+
+// Route pour mettre à jour le contenu textuel d'un cours
+router.put('/:id/content', authMiddleware, async (req, res) => {
+    try {
+        const { content } = req.body;
+
+        if (!content || typeof content !== 'string') {
+            return res.status(400).json({
+                success: false,
+                message: 'Le contenu est requis'
+            });
+        }
+
+        // Récupérer le cours pour vérifier l'appartenance et obtenir le chemin du fichier
+        const { data: courses, error: fetchError } = await supabase
+            .from('courses')
+            .select('file_path, file_type, edited_content_path')
+            .eq('id', req.params.id)
+            .eq('uploaded_by', req.user.userId);
+
+        if (fetchError) throw fetchError;
+
+        if (!courses || courses.length === 0) {
+            return res.status(404).json({
+                success: false,
+                message: 'Cours non trouvé'
+            });
+        }
+
+        const course = courses[0];
+
+        if (course.file_type === 'txt') {
+            // Pour les fichiers texte, écraser directement le contenu
+            await fs.writeFile(course.file_path, content, 'utf-8');
+        } else {
+            // Pour les PDF, DOCX, etc., sauvegarder le contenu édité séparément
+            // Le fichier original reste intact
+            let editedPath = course.edited_content_path;
+
+            if (!editedPath) {
+                // Créer un nouveau fichier pour le contenu édité
+                const uploadDir = path.join(__dirname, '../../uploads');
+                const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+                editedPath = path.join(uploadDir, uniqueSuffix + '-edited.txt');
+            }
+
+            // Sauvegarder le contenu édité
+            await fs.writeFile(editedPath, content, 'utf-8');
+
+            // Mettre à jour le chemin du contenu édité dans la base de données
+            // SANS modifier file_path et file_type (on garde le PDF original)
+            const { error: updateError } = await supabase
+                .from('courses')
+                .update({
+                    edited_content_path: editedPath
+                })
+                .eq('id', req.params.id)
+                .eq('uploaded_by', req.user.userId);
+
+            if (updateError) throw updateError;
+        }
+
+        console.log('✅ Contenu du cours mis à jour:', req.params.id);
+
+        res.json({
+            success: true,
+            message: 'Contenu mis à jour avec succès'
+        });
+
+    } catch (error) {
+        console.error('Erreur mise à jour contenu:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Erreur lors de la mise à jour du contenu: ' + error.message
         });
     }
 });

@@ -179,6 +179,14 @@ export const coursesAPI = {
             body: JSON.stringify(courseData),
         });
     },
+
+    // Mettre à jour le contenu textuel d'un cours
+    updateContent: async (courseId, content) => {
+        return apiRequest(`/courses/${courseId}/content`, {
+            method: 'PUT',
+            body: JSON.stringify({ content }),
+        });
+    },
 };
 
 // API de QCM

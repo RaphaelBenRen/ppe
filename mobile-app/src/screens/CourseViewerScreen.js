@@ -46,6 +46,10 @@ const CourseViewerScreen = ({ route, navigation }) => {
     const [fileInfo, setFileInfo] = useState(null);
     const [pdfLoading, setPdfLoading] = useState(true); // true par défaut car on charge le PDF
     const [supportsOriginalView, setSupportsOriginalView] = useState(true); // true pour PDF seulement
+    const [isEditing, setIsEditing] = useState(false);
+    const [editedContent, setEditedContent] = useState('');
+    const [originalFullContent, setOriginalFullContent] = useState('');
+    const [saving, setSaving] = useState(false);
     const webViewRef = useRef(null);
     const pdfWebViewRef = useRef(null);
     const { width } = useWindowDimensions();
@@ -164,6 +168,8 @@ const CourseViewerScreen = ({ route, navigation }) => {
                     Alert.alert('Attention', 'Ce cours ne contient pas de texte lisible.');
                 }
                 setCourseData(response.data);
+                const formattedContent = formatContent(response.data.content);
+                setOriginalFullContent(formattedContent);
                 const paginatedContent = paginateContent(response.data.content);
                 setPages(paginatedContent);
 
@@ -268,11 +274,62 @@ const CourseViewerScreen = ({ route, navigation }) => {
     };
 
     const toggleViewMode = () => {
-        if (viewMode === 'text') {
-            setPdfLoading(true);
-            setViewMode('original');
-        } else {
+        // Plus besoin de recharger le PDF - il reste en mémoire
+        setViewMode(viewMode === 'text' ? 'original' : 'text');
+    };
+
+    // Fonctions d'édition
+    const startEditing = () => {
+        setEditedContent(originalFullContent);
+        setIsEditing(true);
+        // Passer en mode texte si on est en mode PDF
+        if (viewMode === 'original') {
             setViewMode('text');
+        }
+    };
+
+    const cancelEditing = () => {
+        Alert.alert(
+            'Annuler les modifications',
+            'Vos modifications seront perdues. Continuer ?',
+            [
+                { text: 'Non', style: 'cancel' },
+                {
+                    text: 'Oui',
+                    style: 'destructive',
+                    onPress: () => {
+                        setIsEditing(false);
+                        setEditedContent('');
+                    }
+                }
+            ]
+        );
+    };
+
+    const saveEditing = async () => {
+        if (editedContent.trim() === originalFullContent.trim()) {
+            setIsEditing(false);
+            setEditedContent('');
+            return;
+        }
+
+        setSaving(true);
+        try {
+            const response = await coursesAPI.updateContent(courseId, editedContent);
+            if (response.success) {
+                // Mettre à jour le contenu local
+                setOriginalFullContent(editedContent);
+                const paginatedContent = paginateContent(editedContent);
+                setPages(paginatedContent);
+                setCurrentPage(0);
+                setIsEditing(false);
+                setEditedContent('');
+                Alert.alert('Succes', 'Le contenu a ete mis a jour');
+            }
+        } catch (error) {
+            Alert.alert('Erreur', error.message || 'Erreur lors de la sauvegarde');
+        } finally {
+            setSaving(false);
         }
     };
 
@@ -548,6 +605,9 @@ const CourseViewerScreen = ({ route, navigation }) => {
                     <Text style={styles.headerTitle} numberOfLines={1}>{courseData.titre}</Text>
                     <Text style={styles.headerSubtitle}>{courseData.matiere}</Text>
                 </View>
+                <TouchableOpacity style={styles.editButton} onPress={startEditing}>
+                    <Text style={styles.editButtonText}>E</Text>
+                </TouchableOpacity>
                 <TouchableOpacity style={styles.aiButton} onPress={() => {
                     setSelectionContext('');
                     setAIQuestion('');
@@ -597,51 +657,53 @@ const CourseViewerScreen = ({ route, navigation }) => {
                 </View>
             )}
 
-            {viewMode === 'text' ? (
-                <>
-                    {/* Page indicator */}
-                    <View style={styles.pageIndicator}>
-                        <Text style={styles.pageText}>Page {currentPage + 1} / {pages.length}</Text>
-                        <View style={styles.progressBar}>
-                            <View style={[styles.progressFill, { width: `${((currentPage + 1) / pages.length) * 100}%` }]} />
-                        </View>
+            {/* Vue Texte - toujours rendue mais masquée si pas active */}
+            <View style={[styles.textViewWrapper, viewMode !== 'text' && styles.hiddenView]}>
+                {/* Page indicator */}
+                <View style={styles.pageIndicator}>
+                    <Text style={styles.pageText}>Page {currentPage + 1} / {pages.length}</Text>
+                    <View style={styles.progressBar}>
+                        <View style={[styles.progressFill, { width: `${((currentPage + 1) / pages.length) * 100}%` }]} />
                     </View>
+                </View>
 
-                    {/* WebView Content */}
-                    <View style={styles.webViewContainer}>
-                        <WebView
-                            ref={webViewRef}
-                            key={currentPage}
-                            source={{ html: getWebViewHTML(currentContent, pageHighlights) }}
-                            style={styles.webView}
-                            onMessage={handleWebViewMessage}
-                            scrollEnabled={true}
-                            showsVerticalScrollIndicator={true}
-                            originWhitelist={['*']}
-                            javaScriptEnabled={true}
-                        />
-                    </View>
+                {/* WebView Content */}
+                <View style={styles.webViewContainer}>
+                    <WebView
+                        ref={webViewRef}
+                        key={currentPage}
+                        source={{ html: getWebViewHTML(currentContent, pageHighlights) }}
+                        style={styles.webView}
+                        onMessage={handleWebViewMessage}
+                        scrollEnabled={true}
+                        showsVerticalScrollIndicator={true}
+                        originWhitelist={['*']}
+                        javaScriptEnabled={true}
+                    />
+                </View>
 
-                    {/* Navigation */}
-                    <View style={styles.navigationContainer}>
-                        <TouchableOpacity
-                            style={[styles.navButton, currentPage === 0 && styles.navButtonDisabled]}
-                            onPress={goToPreviousPage}
-                            disabled={currentPage === 0}
-                        >
-                            <Text style={styles.navButtonText}>← Précédent</Text>
-                        </TouchableOpacity>
-                        <TouchableOpacity
-                            style={[styles.navButton, currentPage === pages.length - 1 && styles.navButtonDisabled]}
-                            onPress={goToNextPage}
-                            disabled={currentPage === pages.length - 1}
-                        >
-                            <Text style={styles.navButtonText}>Suivant →</Text>
-                        </TouchableOpacity>
-                    </View>
-                </>
-            ) : (
-                <>
+                {/* Navigation */}
+                <View style={styles.navigationContainer}>
+                    <TouchableOpacity
+                        style={[styles.navButton, currentPage === 0 && styles.navButtonDisabled]}
+                        onPress={goToPreviousPage}
+                        disabled={currentPage === 0}
+                    >
+                        <Text style={styles.navButtonText}>← Précédent</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                        style={[styles.navButton, currentPage === pages.length - 1 && styles.navButtonDisabled]}
+                        onPress={goToNextPage}
+                        disabled={currentPage === pages.length - 1}
+                    >
+                        <Text style={styles.navButtonText}>Suivant →</Text>
+                    </TouchableOpacity>
+                </View>
+            </View>
+
+            {/* Vue PDF - toujours rendue mais masquée si pas active (permet de garder le PDF en cache) */}
+            {supportsOriginalView && fileInfo && (
+                <View style={[styles.pdfViewWrapper, viewMode !== 'original' && styles.hiddenView]}>
                     {/* PDF Viewer */}
                     <View style={styles.pdfContainer}>
                         {pdfLoading && (
@@ -671,7 +733,7 @@ const CourseViewerScreen = ({ route, navigation }) => {
                             Mode PDF : Formatage original conservé. Basculez en mode Texte pour surligner et poser des questions.
                         </Text>
                     </View>
-                </>
+                </View>
             )}
 
             {/* Color Picker Modal */}
@@ -816,6 +878,57 @@ const CourseViewerScreen = ({ route, navigation }) => {
                         >
                             <Text style={styles.closeModalButtonText}>Fermer</Text>
                         </TouchableOpacity>
+                    </View>
+                </KeyboardAvoidingView>
+            </Modal>
+
+            {/* Edit Modal */}
+            <Modal
+                visible={isEditing}
+                animationType="slide"
+                onRequestClose={cancelEditing}
+            >
+                <KeyboardAvoidingView
+                    style={styles.editModalContainer}
+                    behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+                >
+                    {/* Edit Header */}
+                    <View style={styles.editModalHeader}>
+                        <TouchableOpacity onPress={cancelEditing}>
+                            <Text style={styles.editCancelText}>Annuler</Text>
+                        </TouchableOpacity>
+                        <Text style={styles.editModalTitle}>Modifier le texte</Text>
+                        <TouchableOpacity onPress={saveEditing} disabled={saving}>
+                            {saving ? (
+                                <ActivityIndicator size="small" color="#1a1a2e" />
+                            ) : (
+                                <Text style={styles.editSaveText}>Enregistrer</Text>
+                            )}
+                        </TouchableOpacity>
+                    </View>
+
+                    {/* Edit Content */}
+                    <ScrollView
+                        style={styles.editScrollView}
+                        keyboardShouldPersistTaps="handled"
+                    >
+                        <TextInput
+                            style={styles.editTextInput}
+                            value={editedContent}
+                            onChangeText={setEditedContent}
+                            multiline
+                            textAlignVertical="top"
+                            autoFocus={false}
+                            placeholder="Contenu du cours..."
+                            placeholderTextColor="#999"
+                        />
+                    </ScrollView>
+
+                    {/* Info */}
+                    <View style={styles.editInfoBanner}>
+                        <Text style={styles.editInfoText}>
+                            Les modifications seront sauvegardees sur le serveur
+                        </Text>
                     </View>
                 </KeyboardAvoidingView>
             </Modal>
@@ -1244,6 +1357,89 @@ const styles = StyleSheet.create({
         color: '#555',
         textAlign: 'center',
         fontWeight: '500',
+    },
+    textViewWrapper: {
+        flex: 1,
+    },
+    pdfViewWrapper: {
+        flex: 1,
+    },
+    hiddenView: {
+        position: 'absolute',
+        width: 0,
+        height: 0,
+        opacity: 0,
+        overflow: 'hidden',
+    },
+    // Edit button styles
+    editButton: {
+        width: 40,
+        height: 40,
+        borderRadius: 20,
+        backgroundColor: '#fff',
+        justifyContent: 'center',
+        alignItems: 'center',
+        marginLeft: 10,
+        borderWidth: 1,
+        borderColor: '#e0e0e0',
+    },
+    editButtonText: {
+        color: '#1a1a2e',
+        fontSize: 16,
+        fontWeight: '600',
+    },
+    // Edit modal styles
+    editModalContainer: {
+        flex: 1,
+        backgroundColor: '#f8f9fa',
+    },
+    editModalHeader: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        paddingTop: 55,
+        paddingBottom: 15,
+        paddingHorizontal: 20,
+        backgroundColor: '#fff',
+        borderBottomWidth: 1,
+        borderBottomColor: '#e0e0e0',
+    },
+    editModalTitle: {
+        fontSize: 17,
+        fontWeight: '600',
+        color: '#1a1a2e',
+    },
+    editCancelText: {
+        fontSize: 16,
+        color: '#666',
+    },
+    editSaveText: {
+        fontSize: 16,
+        color: '#1a1a2e',
+        fontWeight: '600',
+    },
+    editScrollView: {
+        flex: 1,
+    },
+    editTextInput: {
+        flex: 1,
+        padding: 20,
+        fontSize: 16,
+        lineHeight: 26,
+        color: '#333',
+        backgroundColor: '#fff',
+        minHeight: 500,
+    },
+    editInfoBanner: {
+        padding: 15,
+        backgroundColor: '#e3f2fd',
+        borderTopWidth: 1,
+        borderTopColor: '#e0e0e0',
+    },
+    editInfoText: {
+        fontSize: 12,
+        color: '#1976d2',
+        textAlign: 'center',
     },
 });
 
