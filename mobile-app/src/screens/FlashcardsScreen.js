@@ -1,41 +1,21 @@
-import React, { useState, useEffect } from 'react';
+import React from 'react';
 import {
     View,
     Text,
     StyleSheet,
     FlatList,
     TouchableOpacity,
-    ActivityIndicator,
     Dimensions,
     useWindowDimensions,
 } from 'react-native';
-import { flashcardsAPI } from '../utils/api';
+import { useData } from '../context/DataContext';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
 const FlashcardsScreen = ({ navigation }) => {
-    const [flashcardSets, setFlashcardSets] = useState([]);
-    const [loading, setLoading] = useState(true);
-    const { width, height } = useWindowDimensions();
+    const { flashcards } = useData();
+    const { width } = useWindowDimensions();
     const isTablet = width >= 768;
-
-    useEffect(() => {
-        loadFlashcards();
-    }, []);
-
-    const loadFlashcards = async () => {
-        setLoading(true);
-        try {
-            const response = await flashcardsAPI.getMyFlashcards();
-            if (response.success) {
-                setFlashcardSets(response.data);
-            }
-        } catch (error) {
-            console.error('Erreur chargement flashcards:', error);
-        } finally {
-            setLoading(false);
-        }
-    };
 
     const renderFlashcardSet = ({ item }) => (
         <TouchableOpacity
@@ -58,9 +38,7 @@ const FlashcardsScreen = ({ navigation }) => {
                 <Text style={[styles.headerTitle, isTablet && styles.headerTitleTablet]}>Mes Flashcards</Text>
             </View>
 
-            {loading ? (
-                <ActivityIndicator color="#1a1a2e" style={{ marginTop: 50 }} />
-            ) : flashcardSets.length === 0 ? (
+            {flashcards.length === 0 ? (
                 <View style={styles.emptyContainer}>
                     <Text style={styles.emptyIcon}>F</Text>
                     <Text style={[styles.emptyText, isTablet && styles.emptyTextTablet]}>Aucune flashcard générée</Text>
@@ -70,7 +48,7 @@ const FlashcardsScreen = ({ navigation }) => {
                 </View>
             ) : (
                 <FlatList
-                    data={flashcardSets}
+                    data={flashcards}
                     renderItem={renderFlashcardSet}
                     keyExtractor={(item) => item.id.toString()}
                     contentContainerStyle={[styles.list, isTablet && styles.listTablet]}

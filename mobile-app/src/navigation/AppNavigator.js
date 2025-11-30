@@ -2,9 +2,10 @@ import React from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import { createStackNavigator } from '@react-navigation/stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
-import { ActivityIndicator, View, Text, useWindowDimensions } from 'react-native';
+import { ActivityIndicator, View, Text, useWindowDimensions, StyleSheet } from 'react-native';
 
 import { useAuth } from '../context/AuthContext';
+import { useData } from '../context/DataContext';
 
 // Screens
 import LoginScreen from '../screens/LoginScreen';
@@ -110,11 +111,23 @@ const MainTabs = () => {
 
 const AppNavigator = () => {
     const { user, loading, isOnboardingComplete } = useAuth();
+    const { initialLoading, dataLoaded } = useData();
 
+    // Écran de chargement initial (auth)
     if (loading) {
         return (
-            <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#f8f9fa' }}>
+            <View style={styles.loadingContainer}>
                 <ActivityIndicator size="large" color="#1a1a2e" />
+            </View>
+        );
+    }
+
+    // Écran de chargement des données (après connexion)
+    if (user && isOnboardingComplete && initialLoading && !dataLoaded) {
+        return (
+            <View style={styles.loadingContainer}>
+                <ActivityIndicator size="large" color="#1a1a2e" />
+                <Text style={styles.loadingText}>Chargement de vos données...</Text>
             </View>
         );
     }
@@ -148,5 +161,19 @@ const AppNavigator = () => {
         </NavigationContainer>
     );
 };
+
+const styles = StyleSheet.create({
+    loadingContainer: {
+        flex: 1,
+        justifyContent: 'center',
+        alignItems: 'center',
+        backgroundColor: '#f8f9fa',
+    },
+    loadingText: {
+        marginTop: 15,
+        fontSize: 16,
+        color: '#666',
+    },
+});
 
 export default AppNavigator;

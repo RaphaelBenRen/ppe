@@ -13,8 +13,10 @@ import {
 } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { coursesAPI, onboardingAPI } from '../utils/api';
+import { useData } from '../context/DataContext';
 
 const OCRScreen = ({ navigation }) => {
+    const { refreshCourses } = useData();
     const [selectedImage, setSelectedImage] = useState(null);
     const [extractedText, setExtractedText] = useState('');
     const [loading, setLoading] = useState(false);
@@ -127,6 +129,7 @@ const OCRScreen = ({ navigation }) => {
             });
 
             if (response.success) {
+                refreshCourses();
                 Alert.alert(
                     'Succès',
                     'Cours créé avec succès !',

@@ -1,41 +1,21 @@
-import React, { useState, useEffect } from 'react';
+import React from 'react';
 import {
     View,
     Text,
     StyleSheet,
     FlatList,
     TouchableOpacity,
-    ActivityIndicator,
     Dimensions,
     useWindowDimensions,
 } from 'react-native';
-import { qcmAPI } from '../utils/api';
+import { useData } from '../context/DataContext';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
 const QCMScreen = ({ navigation }) => {
-    const [qcms, setQcms] = useState([]);
-    const [loading, setLoading] = useState(true);
-    const { width, height } = useWindowDimensions();
+    const { qcms } = useData();
+    const { width } = useWindowDimensions();
     const isTablet = width >= 768;
-
-    useEffect(() => {
-        loadQCMs();
-    }, []);
-
-    const loadQCMs = async () => {
-        setLoading(true);
-        try {
-            const response = await qcmAPI.getMyQCMs();
-            if (response.success) {
-                setQcms(response.data);
-            }
-        } catch (error) {
-            console.error('Erreur chargement QCMs:', error);
-        } finally {
-            setLoading(false);
-        }
-    };
 
     const renderQCM = ({ item }) => (
         <View style={styles.qcmCard}>
@@ -80,9 +60,7 @@ const QCMScreen = ({ navigation }) => {
                 <Text style={[styles.headerTitle, isTablet && styles.headerTitleTablet]}>Mes QCMs</Text>
             </View>
 
-            {loading ? (
-                <ActivityIndicator color="#1a1a2e" style={{ marginTop: 50 }} />
-            ) : qcms.length === 0 ? (
+            {qcms.length === 0 ? (
                 <View style={styles.emptyContainer}>
                     <Text style={styles.emptyIcon}>Q</Text>
                     <Text style={[styles.emptyText, isTablet && styles.emptyTextTablet]}>Aucun QCM généré</Text>

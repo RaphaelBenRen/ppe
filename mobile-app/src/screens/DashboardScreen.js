@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import {
     View,
     Text,
@@ -13,12 +13,13 @@ import {
 } from 'react-native';
 import * as DocumentPicker from 'expo-document-picker';
 import { useAuth } from '../context/AuthContext';
+import { useData } from '../context/DataContext';
 import { coursesAPI, qcmAPI, flashcardsAPI } from '../utils/api';
 
 const DashboardScreen = ({ navigation }) => {
     const { user } = useAuth();
-    const [courses, setCourses] = useState([]);
-    const [loading, setLoading] = useState(false);
+    const { courses, refreshCourses, refreshQCMs, refreshFlashcards } = useData();
+    const [generating, setGenerating] = useState(false);
     const [refreshing, setRefreshing] = useState(false);
     const [uploading, setUploading] = useState(false);
     const [selectedCourse, setSelectedCourse] = useState(null);
@@ -34,30 +35,9 @@ const DashboardScreen = ({ navigation }) => {
         annee_cible: 'Ing3',
     });
 
-    useEffect(() => {
-        loadCourses();
-    }, []);
-
-    const loadCourses = async () => {
-        setLoading(true);
-        try {
-            const response = await coursesAPI.getMyCourses();
-            if (response.success && response.data) {
-                setCourses(response.data);
-            } else {
-                setCourses([]);
-            }
-        } catch (error) {
-            console.error('Erreur chargement cours:', error);
-            setCourses([]);
-        } finally {
-            setLoading(false);
-        }
-    };
-
     const onRefresh = async () => {
         setRefreshing(true);
-        await loadCourses();
+        await refreshCourses();
         setRefreshing(false);
     };
 
@@ -113,7 +93,7 @@ const DashboardScreen = ({ navigation }) => {
 
             if (response.success) {
                 Alert.alert('Succès', 'Cours importé avec succès');
-                loadCourses();
+                refreshCourses();
             }
         } catch (error) {
             Alert.alert('Erreur', error.message || 'Erreur lors de l\'import');
@@ -131,16 +111,17 @@ const DashboardScreen = ({ navigation }) => {
 
     const submitQCMGeneration = async () => {
         setShowQCMModal(false);
-        setLoading(true);
+        setGenerating(true);
         try {
             const response = await qcmAPI.generateFromCourse(selectedCourse.id, qcmOptions);
             if (response.success) {
                 Alert.alert('Succès', 'QCM généré avec succès');
+                refreshQCMs();
             }
         } catch (error) {
             Alert.alert('Erreur', error.message || 'Erreur lors de la génération');
         } finally {
-            setLoading(false);
+            setGenerating(false);
         }
     };
 
@@ -151,16 +132,17 @@ const DashboardScreen = ({ navigation }) => {
 
     const submitFlashcardsGeneration = async () => {
         setShowFlashcardsModal(false);
-        setLoading(true);
+        setGenerating(true);
         try {
             const response = await flashcardsAPI.generateFromCourse(selectedCourse.id, flashcardsOptions);
             if (response.success) {
                 Alert.alert('Succès', 'Flashcards générées avec succès');
+                refreshFlashcards();
             }
         } catch (error) {
             Alert.alert('Erreur', error.message || 'Erreur lors de la génération');
         } finally {
-            setLoading(false);
+            setGenerating(false);
         }
     };
 
@@ -176,7 +158,7 @@ const DashboardScreen = ({ navigation }) => {
                     onPress: async () => {
                         try {
                             await coursesAPI.deleteCourse(courseId);
-                            loadCourses();
+                            refreshCourses();
                         } catch (error) {
                             Alert.alert('Erreur', 'Erreur lors de la suppression');
                         }
@@ -256,12 +238,12 @@ const DashboardScreen = ({ navigation }) => {
             </View>
 
             {/* Loading overlay */}
-            {(loading || uploading) && (
+            {(generating || uploading) && (
                 <View style={styles.loadingOverlay}>
                     <View style={styles.loadingBox}>
                         <ActivityIndicator size="large" color="#1a1a2e" />
                         <Text style={styles.loadingText}>
-                            {uploading ? 'Import en cours...' : 'Chargement...'}
+                            {uploading ? 'Import en cours...' : 'Génération en cours...'}
                         </Text>
                     </View>
                 </View>
