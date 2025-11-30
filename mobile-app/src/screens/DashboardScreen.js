@@ -64,7 +64,14 @@ const DashboardScreen = ({ navigation }) => {
     const handlePickDocument = async () => {
         try {
             const result = await DocumentPicker.getDocumentAsync({
-                type: ['application/pdf', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'text/plain'],
+                type: [
+                    'application/pdf',
+                    'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+                    'application/msword',
+                    'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+                    'application/vnd.ms-powerpoint',
+                    'text/plain'
+                ],
                 copyToCacheDirectory: true,
             });
 

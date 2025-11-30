@@ -135,6 +135,14 @@ export const coursesAPI = {
             body: JSON.stringify({ highlights }),
         });
     },
+
+    getFileUrl: async (courseId) => {
+        const token = await AsyncStorage.getItem('token');
+        return {
+            url: `${API_URL}/courses/${courseId}/file`,
+            token: token
+        };
+    },
 };
 
 // API de QCM

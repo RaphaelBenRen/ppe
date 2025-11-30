@@ -26,13 +26,13 @@ const storage = multer.diskStorage({
 });
 
 const fileFilter = (req, file, cb) => {
-    const allowedTypes = ['.pdf', '.docx', '.doc', '.txt'];
+    const allowedTypes = ['.pdf', '.docx', '.doc', '.txt', '.ppt', '.pptx'];
     const ext = path.extname(file.originalname).toLowerCase();
 
     if (allowedTypes.includes(ext)) {
         cb(null, true);
     } else {
-        cb(new Error('Type de fichier non autorisé. Utilisez PDF, DOCX ou TXT.'));
+        cb(new Error('Type de fichier non autorisé. Utilisez PDF, DOCX, PPT ou TXT.'));
     }
 };
 
@@ -174,6 +174,65 @@ router.get('/:id', authMiddleware, async (req, res) => {
         res.status(500).json({
             success: false,
             message: 'Erreur lors de la récupération du cours'
+        });
+    }
+});
+
+// Route pour télécharger/servir le fichier original d'un cours
+router.get('/:id/file', authMiddleware, async (req, res) => {
+    try {
+        const { data: courses, error } = await supabase
+            .from('courses')
+            .select('file_path, file_type, titre')
+            .eq('id', req.params.id)
+            .eq('uploaded_by', req.user.userId);
+
+        if (error) throw error;
+
+        if (!courses || courses.length === 0) {
+            return res.status(404).json({
+                success: false,
+                message: 'Cours non trouvé'
+            });
+        }
+
+        const course = courses[0];
+        const filePath = course.file_path;
+
+        // Vérifier que le fichier existe
+        try {
+            await fs.access(filePath);
+        } catch {
+            return res.status(404).json({
+                success: false,
+                message: 'Fichier non trouvé sur le serveur'
+            });
+        }
+
+        // Définir le type MIME
+        const mimeTypes = {
+            'pdf': 'application/pdf',
+            'docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+            'doc': 'application/msword',
+            'txt': 'text/plain',
+            'pptx': 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+            'ppt': 'application/vnd.ms-powerpoint'
+        };
+
+        const mimeType = mimeTypes[course.file_type] || 'application/octet-stream';
+
+        res.setHeader('Content-Type', mimeType);
+        res.setHeader('Content-Disposition', `inline; filename="${course.titre}.${course.file_type}"`);
+
+        // Lire et envoyer le fichier
+        const fileBuffer = await fs.readFile(filePath);
+        res.send(fileBuffer);
+
+    } catch (error) {
+        console.error('Erreur récupération fichier cours:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Erreur lors de la récupération du fichier'
         });
     }
 });

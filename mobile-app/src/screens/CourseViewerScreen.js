@@ -42,13 +42,28 @@ const CourseViewerScreen = ({ route, navigation }) => {
     const [aiResponse, setAIResponse] = useState('');
     const [aiLoading, setAILoading] = useState(false);
     const [selectionContext, setSelectionContext] = useState('');
+    const [viewMode, setViewMode] = useState('original'); // 'text' ou 'original' - PDF par défaut
+    const [fileInfo, setFileInfo] = useState(null);
+    const [pdfLoading, setPdfLoading] = useState(true); // true par défaut car on charge le PDF
+    const [supportsOriginalView, setSupportsOriginalView] = useState(true); // true pour PDF seulement
     const webViewRef = useRef(null);
+    const pdfWebViewRef = useRef(null);
     const { width } = useWindowDimensions();
 
     useEffect(() => {
         loadCourseContent();
         loadHighlights();
+        loadFileInfo();
     }, []);
+
+    const loadFileInfo = async () => {
+        try {
+            const info = await coursesAPI.getFileUrl(courseId);
+            setFileInfo(info);
+        } catch (error) {
+            console.log('Erreur chargement info fichier:', error);
+        }
+    };
 
     // Sauvegarder les surlignages quand ils changent
     useEffect(() => {
@@ -151,6 +166,16 @@ const CourseViewerScreen = ({ route, navigation }) => {
                 setCourseData(response.data);
                 const paginatedContent = paginateContent(response.data.content);
                 setPages(paginatedContent);
+
+                // Vérifier si le fichier supporte le mode original (PDF uniquement)
+                const isPdf = response.data.file_type === 'pdf';
+                setSupportsOriginalView(isPdf);
+
+                // Si ce n'est pas un PDF, passer directement en mode texte
+                if (!isPdf) {
+                    setViewMode('text');
+                    setPdfLoading(false);
+                }
             } else {
                 Alert.alert('Erreur', 'Impossible de charger le contenu du cours');
             }
@@ -239,6 +264,131 @@ const CourseViewerScreen = ({ route, navigation }) => {
     const goToPreviousPage = () => {
         if (currentPage > 0) {
             setCurrentPage(currentPage - 1);
+        }
+    };
+
+    const toggleViewMode = () => {
+        if (viewMode === 'text') {
+            setPdfLoading(true);
+            setViewMode('original');
+        } else {
+            setViewMode('text');
+        }
+    };
+
+    const getPdfViewerHTML = () => {
+        if (!fileInfo) return '';
+
+        // On utilise PDF.js via CDN pour afficher le PDF
+        return `
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=3.0, user-scalable=yes">
+                <style>
+                    * { margin: 0; padding: 0; box-sizing: border-box; }
+                    body {
+                        background-color: #fff;
+                        overflow: auto;
+                    }
+                    #pdf-container {
+                        display: flex;
+                        flex-direction: column;
+                        align-items: center;
+                        padding: 0;
+                        gap: 0;
+                    }
+                    canvas {
+                        max-width: 100%;
+                        height: auto;
+                    }
+                    .loading {
+                        color: #1a1a2e;
+                        font-family: sans-serif;
+                        padding: 40px;
+                        text-align: center;
+                    }
+                    .error {
+                        color: #ff6b6b;
+                        font-family: sans-serif;
+                        padding: 40px;
+                        text-align: center;
+                    }
+                </style>
+                <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+            </head>
+            <body>
+                <div id="pdf-container">
+                    <div class="loading">Chargement du PDF...</div>
+                </div>
+                <script>
+                    pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+
+                    const url = '${fileInfo.url}';
+                    const token = '${fileInfo.token}';
+
+                    async function loadPDF() {
+                        try {
+                            const response = await fetch(url, {
+                                headers: {
+                                    'Authorization': 'Bearer ' + token
+                                }
+                            });
+
+                            if (!response.ok) {
+                                throw new Error('Erreur de chargement: ' + response.status);
+                            }
+
+                            const arrayBuffer = await response.arrayBuffer();
+                            const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+
+                            const container = document.getElementById('pdf-container');
+                            container.innerHTML = '';
+
+                            for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
+                                const page = await pdf.getPage(pageNum);
+                                const scale = 1.5;
+                                const viewport = page.getViewport({ scale });
+
+                                const canvas = document.createElement('canvas');
+                                const context = canvas.getContext('2d');
+                                canvas.height = viewport.height;
+                                canvas.width = viewport.width;
+
+                                await page.render({
+                                    canvasContext: context,
+                                    viewport: viewport
+                                }).promise;
+
+                                container.appendChild(canvas);
+                            }
+
+                            window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'pdfLoaded' }));
+                        } catch (error) {
+                            console.error('Erreur:', error);
+                            document.getElementById('pdf-container').innerHTML = '<div class="error">Erreur de chargement du PDF: ' + error.message + '</div>';
+                            window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'pdfError', message: error.message }));
+                        }
+                    }
+
+                    loadPDF();
+                </script>
+            </body>
+            </html>
+        `;
+    };
+
+    const handlePdfMessage = (event) => {
+        try {
+            const data = JSON.parse(event.nativeEvent.data);
+            if (data.type === 'pdfLoaded') {
+                setPdfLoading(false);
+            } else if (data.type === 'pdfError') {
+                setPdfLoading(false);
+                Alert.alert('Erreur', 'Impossible de charger le fichier original');
+            }
+        } catch (e) {
+            console.error('Error parsing PDF WebView message:', e);
         }
     };
 
@@ -407,46 +557,122 @@ const CourseViewerScreen = ({ route, navigation }) => {
                 </TouchableOpacity>
             </View>
 
-            {/* Page indicator */}
-            <View style={styles.pageIndicator}>
-                <Text style={styles.pageText}>Page {currentPage + 1} / {pages.length}</Text>
-                <View style={styles.progressBar}>
-                    <View style={[styles.progressFill, { width: `${((currentPage + 1) / pages.length) * 100}%` }]} />
+            {/* View Mode Toggle - Affiché uniquement pour les PDF */}
+            {supportsOriginalView && (
+                <View style={styles.viewModeToggle}>
+                    <TouchableOpacity
+                        style={[styles.toggleButton, viewMode === 'original' && styles.toggleButtonActive]}
+                        onPress={toggleViewMode}
+                        disabled={!fileInfo}
+                    >
+                        <Text style={[
+                            styles.toggleButtonText,
+                            viewMode === 'original' && styles.toggleButtonTextActive,
+                            !fileInfo && styles.toggleButtonTextDisabled
+                        ]}>
+                            PDF Original
+                        </Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                        style={[styles.toggleButton, viewMode === 'text' && styles.toggleButtonActive]}
+                        onPress={() => setViewMode('text')}
+                    >
+                        <Text style={[styles.toggleButtonText, viewMode === 'text' && styles.toggleButtonTextActive]}>
+                            Texte
+                        </Text>
+                    </TouchableOpacity>
                 </View>
-            </View>
+            )}
 
-            {/* WebView Content */}
-            <View style={styles.webViewContainer}>
-                <WebView
-                    ref={webViewRef}
-                    key={currentPage}
-                    source={{ html: getWebViewHTML(currentContent, pageHighlights) }}
-                    style={styles.webView}
-                    onMessage={handleWebViewMessage}
-                    scrollEnabled={true}
-                    showsVerticalScrollIndicator={true}
-                    originWhitelist={['*']}
-                    javaScriptEnabled={true}
-                />
-            </View>
+            {/* Info pour les fichiers non-PDF */}
+            {!supportsOriginalView && courseData && (
+                <View style={styles.fileTypeBanner}>
+                    <Text style={styles.fileTypeBannerText}>
+                        {courseData.file_type === 'pptx' || courseData.file_type === 'ppt'
+                            ? '📊 Fichier PowerPoint - Affichage texte'
+                            : courseData.file_type === 'docx' || courseData.file_type === 'doc'
+                                ? '📄 Fichier Word - Affichage texte'
+                                : '📝 Fichier texte'}
+                    </Text>
+                </View>
+            )}
 
-            {/* Navigation */}
-            <View style={styles.navigationContainer}>
-                <TouchableOpacity
-                    style={[styles.navButton, currentPage === 0 && styles.navButtonDisabled]}
-                    onPress={goToPreviousPage}
-                    disabled={currentPage === 0}
-                >
-                    <Text style={styles.navButtonText}>← Précédent</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                    style={[styles.navButton, currentPage === pages.length - 1 && styles.navButtonDisabled]}
-                    onPress={goToNextPage}
-                    disabled={currentPage === pages.length - 1}
-                >
-                    <Text style={styles.navButtonText}>Suivant →</Text>
-                </TouchableOpacity>
-            </View>
+            {viewMode === 'text' ? (
+                <>
+                    {/* Page indicator */}
+                    <View style={styles.pageIndicator}>
+                        <Text style={styles.pageText}>Page {currentPage + 1} / {pages.length}</Text>
+                        <View style={styles.progressBar}>
+                            <View style={[styles.progressFill, { width: `${((currentPage + 1) / pages.length) * 100}%` }]} />
+                        </View>
+                    </View>
+
+                    {/* WebView Content */}
+                    <View style={styles.webViewContainer}>
+                        <WebView
+                            ref={webViewRef}
+                            key={currentPage}
+                            source={{ html: getWebViewHTML(currentContent, pageHighlights) }}
+                            style={styles.webView}
+                            onMessage={handleWebViewMessage}
+                            scrollEnabled={true}
+                            showsVerticalScrollIndicator={true}
+                            originWhitelist={['*']}
+                            javaScriptEnabled={true}
+                        />
+                    </View>
+
+                    {/* Navigation */}
+                    <View style={styles.navigationContainer}>
+                        <TouchableOpacity
+                            style={[styles.navButton, currentPage === 0 && styles.navButtonDisabled]}
+                            onPress={goToPreviousPage}
+                            disabled={currentPage === 0}
+                        >
+                            <Text style={styles.navButtonText}>← Précédent</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                            style={[styles.navButton, currentPage === pages.length - 1 && styles.navButtonDisabled]}
+                            onPress={goToNextPage}
+                            disabled={currentPage === pages.length - 1}
+                        >
+                            <Text style={styles.navButtonText}>Suivant →</Text>
+                        </TouchableOpacity>
+                    </View>
+                </>
+            ) : (
+                <>
+                    {/* PDF Viewer */}
+                    <View style={styles.pdfContainer}>
+                        {pdfLoading && (
+                            <View style={styles.pdfLoadingOverlay}>
+                                <ActivityIndicator size="large" color="#1a1a2e" />
+                                <Text style={styles.pdfLoadingText}>Chargement du PDF...</Text>
+                            </View>
+                        )}
+                        <WebView
+                            ref={pdfWebViewRef}
+                            source={{ html: getPdfViewerHTML() }}
+                            style={styles.pdfWebView}
+                            onMessage={handlePdfMessage}
+                            scrollEnabled={true}
+                            showsVerticalScrollIndicator={true}
+                            originWhitelist={['*']}
+                            javaScriptEnabled={true}
+                            domStorageEnabled={true}
+                            mixedContentMode="always"
+                            allowFileAccess={true}
+                        />
+                    </View>
+
+                    {/* Info banner for PDF mode */}
+                    <View style={styles.pdfInfoBanner}>
+                        <Text style={styles.pdfInfoText}>
+                            Mode PDF : Formatage original conservé. Basculez en mode Texte pour surligner et poser des questions.
+                        </Text>
+                    </View>
+                </>
+            )}
 
             {/* Color Picker Modal */}
             <Modal
@@ -923,6 +1149,101 @@ const styles = StyleSheet.create({
         fontSize: 15,
         color: '#333',
         lineHeight: 24,
+    },
+    viewModeToggle: {
+        flexDirection: 'row',
+        marginHorizontal: 20,
+        marginBottom: 10,
+        backgroundColor: '#e8eaed',
+        borderRadius: 10,
+        padding: 4,
+    },
+    toggleButton: {
+        flex: 1,
+        paddingVertical: 10,
+        alignItems: 'center',
+        borderRadius: 8,
+    },
+    toggleButtonActive: {
+        backgroundColor: '#fff',
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.1,
+        shadowRadius: 2,
+        elevation: 2,
+    },
+    toggleButtonText: {
+        fontSize: 14,
+        fontWeight: '500',
+        color: '#666',
+    },
+    toggleButtonTextActive: {
+        color: '#1a1a2e',
+        fontWeight: '600',
+    },
+    toggleButtonTextDisabled: {
+        color: '#bbb',
+    },
+    pdfContainer: {
+        flex: 1,
+        marginHorizontal: 20,
+        marginBottom: 10,
+        borderRadius: 12,
+        overflow: 'hidden',
+        backgroundColor: '#fff',
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.08,
+        shadowRadius: 6,
+        elevation: 3,
+    },
+    pdfWebView: {
+        flex: 1,
+        backgroundColor: '#fff',
+    },
+    pdfLoadingOverlay: {
+        position: 'absolute',
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        backgroundColor: 'rgba(255, 255, 255, 0.95)',
+        justifyContent: 'center',
+        alignItems: 'center',
+        zIndex: 10,
+    },
+    pdfLoadingText: {
+        marginTop: 15,
+        color: '#1a1a2e',
+        fontSize: 14,
+    },
+    pdfInfoBanner: {
+        marginHorizontal: 20,
+        marginBottom: 20,
+        padding: 12,
+        backgroundColor: '#e3f2fd',
+        borderRadius: 10,
+    },
+    pdfInfoText: {
+        fontSize: 12,
+        color: '#1976d2',
+        textAlign: 'center',
+        lineHeight: 18,
+    },
+    fileTypeBanner: {
+        marginHorizontal: 20,
+        marginBottom: 10,
+        padding: 10,
+        backgroundColor: '#f5f5f5',
+        borderRadius: 10,
+        borderLeftWidth: 4,
+        borderLeftColor: '#1a1a2e',
+    },
+    fileTypeBannerText: {
+        fontSize: 13,
+        color: '#555',
+        textAlign: 'center',
+        fontWeight: '500',
     },
 });
 

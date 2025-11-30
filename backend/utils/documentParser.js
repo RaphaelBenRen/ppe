@@ -1,5 +1,6 @@
 const pdfParse = require('pdf-parse');
 const mammoth = require('mammoth');
+const officeParser = require('officeparser');
 const fs = require('fs').promises;
 const path = require('path');
 
@@ -44,6 +45,19 @@ const parseTXT = async (filePath) => {
 };
 
 /**
+ * Parse un fichier PowerPoint (PPT/PPTX)
+ */
+const parsePPT = async (filePath) => {
+    try {
+        const text = await officeParser.parseOfficeAsync(filePath);
+        return text;
+    } catch (error) {
+        console.error('Erreur parsing PPT:', error);
+        throw new Error('Impossible de lire le fichier PowerPoint');
+    }
+};
+
+/**
  * Parse un document selon son extension
  */
 const parseDocument = async (filePath) => {
@@ -57,6 +71,9 @@ const parseDocument = async (filePath) => {
             return await parseDOCX(filePath);
         case '.txt':
             return await parseTXT(filePath);
+        case '.ppt':
+        case '.pptx':
+            return await parsePPT(filePath);
         default:
             throw new Error(`Type de fichier non supporté: ${ext}`);
     }
@@ -110,6 +127,7 @@ module.exports = {
     parsePDF,
     parseDOCX,
     parseTXT,
+    parsePPT,
     cleanText,
     chunkText
 };
