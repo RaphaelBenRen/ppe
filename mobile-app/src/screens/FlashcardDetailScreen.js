@@ -128,17 +128,8 @@ const FlashcardDetailScreen = ({ route, navigation }) => {
         outputRange: [0, 0, 1, 1],
     });
 
-    const getDifficultyColor = (difficulty) => {
-        switch (difficulty?.toLowerCase()) {
-            case 'facile':
-                return '#4caf50';
-            case 'moyen':
-                return '#ff9800';
-            case 'difficile':
-                return '#f44336';
-            default:
-                return '#999';
-        }
+    const getDifficultyColor = () => {
+        return '#e8eaed';
     };
 
     return (
@@ -336,7 +327,7 @@ const styles = StyleSheet.create({
         borderRadius: 12,
     },
     difficultyText: {
-        color: '#fff',
+        color: '#1a1a2e',
         fontSize: 11,
         fontWeight: '600',
         textTransform: 'uppercase',

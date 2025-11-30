@@ -9,6 +9,7 @@ import {
     Alert,
     useWindowDimensions,
 } from 'react-native';
+import Svg, { Circle } from 'react-native-svg';
 import { qcmAPI } from '../utils/api';
 
 const QCMAttemptDetailScreen = ({ route, navigation }) => {
@@ -89,29 +90,56 @@ const QCMAttemptDetailScreen = ({ route, navigation }) => {
             </View>
 
             <ScrollView style={styles.content} contentContainerStyle={styles.contentContainer}>
-                <View style={styles.summaryCard}>
-                    <View style={styles.scoreCircle}>
-                        <Text style={[styles.scoreValue, { color: getScoreColor(attemptData.score) }]}>
-                            {attemptData.score}%
-                        </Text>
-                        <Text style={styles.scoreLabel}>Score obtenu</Text>
-                    </View>
+                {(() => {
+                    const totalQuestions = attemptData.nombre_correctes + attemptData.nombre_incorrectes;
+                    const scorePercent = attemptData.score / 100;
+                    const circleSize = 100;
+                    const strokeWidth = 8;
+                    const radius = (circleSize - strokeWidth) / 2;
+                    const circumference = 2 * Math.PI * radius;
+                    const strokeDashoffset = circumference * (1 - scorePercent);
 
-                    <View style={styles.summaryStats}>
-                        <View style={styles.summaryStatItem}>
-                            <Text style={styles.summaryStatValue}>{attemptData.nombre_correctes}</Text>
-                            <Text style={[styles.summaryStatLabel, { color: '#4caf50' }]}>✅ Correctes</Text>
-                        </View>
-                        <View style={styles.summaryStatItem}>
-                            <Text style={styles.summaryStatValue}>{attemptData.nombre_incorrectes}</Text>
-                            <Text style={[styles.summaryStatLabel, { color: '#f44336' }]}>❌ Incorrectes</Text>
-                        </View>
-                    </View>
+                    return (
+                        <View style={styles.summaryCard}>
+                            {/* Cercle de progression */}
+                            <View style={styles.scoreCircleContainer}>
+                                <Svg width={circleSize} height={circleSize}>
+                                    {/* Cercle de fond */}
+                                    <Circle
+                                        cx={circleSize / 2}
+                                        cy={circleSize / 2}
+                                        r={radius}
+                                        stroke="#e8eaed"
+                                        strokeWidth={strokeWidth}
+                                        fill="none"
+                                    />
+                                    {/* Cercle de progression */}
+                                    <Circle
+                                        cx={circleSize / 2}
+                                        cy={circleSize / 2}
+                                        r={radius}
+                                        stroke="#4CAF50"
+                                        strokeWidth={strokeWidth}
+                                        fill="none"
+                                        strokeLinecap="round"
+                                        strokeDasharray={circumference}
+                                        strokeDashoffset={strokeDashoffset}
+                                        transform={`rotate(-90 ${circleSize / 2} ${circleSize / 2})`}
+                                    />
+                                </Svg>
+                                <View style={styles.scoreCircleText}>
+                                    <Text style={styles.scoreValue}>
+                                        {attemptData.nombre_correctes}/{totalQuestions}
+                                    </Text>
+                                </View>
+                            </View>
 
-                    <Text style={styles.attemptDate}>
-                        Complété le {formatDate(attemptData.completed_at)}
-                    </Text>
-                </View>
+                            <Text style={styles.attemptDate}>
+                                Complété le {formatDate(attemptData.completed_at)}
+                            </Text>
+                        </View>
+                    );
+                })()}
 
                 <View style={styles.questionsSection}>
                     <Text style={styles.sectionTitle}>Détail des réponses</Text>
@@ -158,17 +186,6 @@ const QCMAttemptDetailScreen = ({ route, navigation }) => {
                                     );
                                 })}
                             </View>
-
-                            {!answer.isCorrect && answer.userAnswer && (
-                                <View style={styles.answerInfo}>
-                                    <Text style={styles.yourAnswer}>
-                                        Votre réponse: {answer.userAnswer}
-                                    </Text>
-                                    <Text style={styles.correctAnswerText}>
-                                        Bonne réponse: {answer.correctAnswer}
-                                    </Text>
-                                </View>
-                            )}
 
                             {answer.explanation && (
                                 <View style={styles.explanationBox}>
@@ -259,7 +276,7 @@ const styles = StyleSheet.create({
     summaryCard: {
         backgroundColor: '#fff',
         borderRadius: 12,
-        padding: 20,
+        padding: 25,
         marginBottom: 20,
         alignItems: 'center',
         shadowColor: '#000',
@@ -268,40 +285,22 @@ const styles = StyleSheet.create({
         shadowRadius: 4,
         elevation: 2,
     },
-    scoreCircle: {
+    scoreCircleContainer: {
+        width: 100,
+        height: 100,
+        justifyContent: 'center',
         alignItems: 'center',
-        marginBottom: 20,
-    },
-    scoreValue: {
-        fontSize: 48,
-        fontWeight: 'bold',
-    },
-    scoreLabel: {
-        fontSize: 14,
-        color: '#666',
-        marginTop: 5,
-    },
-    summaryStats: {
-        flexDirection: 'row',
-        width: '100%',
-        justifyContent: 'space-around',
-        paddingVertical: 15,
-        borderTopWidth: 1,
-        borderBottomWidth: 1,
-        borderColor: '#f0f0f0',
         marginBottom: 15,
     },
-    summaryStatItem: {
+    scoreCircleText: {
+        position: 'absolute',
+        justifyContent: 'center',
         alignItems: 'center',
     },
-    summaryStatValue: {
-        fontSize: 24,
+    scoreValue: {
+        fontSize: 22,
         fontWeight: 'bold',
-        color: '#333',
-    },
-    summaryStatLabel: {
-        fontSize: 12,
-        marginTop: 5,
+        color: '#1a1a2e',
     },
     attemptDate: {
         fontSize: 12,
