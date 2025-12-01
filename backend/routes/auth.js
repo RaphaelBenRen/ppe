@@ -222,7 +222,7 @@ router.delete('/delete-account', authMiddleware, async (req, res) => {
 
         // 3. Supprimer les flashcards
         const { error: flashcardsError } = await supabase
-            .from('flashcard_sets')
+            .from('flashcards')
             .delete()
             .eq('user_id', userId);
         if (flashcardsError) console.log('Erreur suppression flashcards:', flashcardsError);
@@ -231,15 +231,8 @@ router.delete('/delete-account', authMiddleware, async (req, res) => {
         const { error: coursesError } = await supabase
             .from('courses')
             .delete()
-            .eq('user_id', userId);
+            .eq('uploaded_by', userId);
         if (coursesError) console.log('Erreur suppression cours:', coursesError);
-
-        // 5. Supprimer le profil onboarding (user_profiles)
-        const { error: profileError } = await supabase
-            .from('user_profiles')
-            .delete()
-            .eq('user_id', userId);
-        if (profileError) console.log('Erreur suppression user_profiles:', profileError);
 
         // 6. Supprimer student_profiles
         const { error: studentProfileError } = await supabase
