@@ -343,7 +343,11 @@ router.get('/:id/file', authMiddleware, async (req, res) => {
         const mimeType = mimeTypes[course.file_type] || 'application/octet-stream';
 
         res.setHeader('Content-Type', mimeType);
-        res.setHeader('Content-Disposition', `inline; filename="${course.titre}.${course.file_type}"`);
+
+        // Encoder le nom de fichier pour éviter les erreurs avec les caractères spéciaux
+        const safeFilename = course.titre.replace(/[^\w\s.-]/g, '_').replace(/\s+/g, '_');
+        const encodedFilename = encodeURIComponent(`${course.titre}.${course.file_type}`);
+        res.setHeader('Content-Disposition', `inline; filename="${safeFilename}.${course.file_type}"; filename*=UTF-8''${encodedFilename}`);
 
         // Lire et envoyer le fichier
         const fileBuffer = await fs.readFile(filePath);

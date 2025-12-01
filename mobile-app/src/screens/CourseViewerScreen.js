@@ -336,7 +336,7 @@ const CourseViewerScreen = ({ route, navigation }) => {
     const getPdfViewerHTML = () => {
         if (!fileInfo) return '';
 
-        // On utilise PDF.js via CDN pour afficher le PDF
+        // Version simple qui charge toutes les pages d'un coup
         return `
             <!DOCTYPE html>
             <html>
@@ -345,17 +345,22 @@ const CourseViewerScreen = ({ route, navigation }) => {
                 <style>
                     * { margin: 0; padding: 0; box-sizing: border-box; }
                     body {
-                        background-color: #fff;
+                        background-color: #f5f5f5;
                         overflow: auto;
                     }
                     #pdf-container {
                         display: flex;
                         flex-direction: column;
                         align-items: center;
-                        padding: 0;
-                        gap: 0;
+                        padding: 10px 0;
+                        gap: 10px;
+                    }
+                    .page-wrapper {
+                        background: white;
+                        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
                     }
                     canvas {
+                        display: block;
                         max-width: 100%;
                         height: auto;
                     }
@@ -397,13 +402,15 @@ const CourseViewerScreen = ({ route, navigation }) => {
                             }
 
                             const arrayBuffer = await response.arrayBuffer();
-                            const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+                            const pdfDoc = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
 
+                            const numPages = pdfDoc.numPages;
                             const container = document.getElementById('pdf-container');
                             container.innerHTML = '';
 
-                            for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
-                                const page = await pdf.getPage(pageNum);
+                            // Rendre toutes les pages
+                            for (let i = 1; i <= numPages; i++) {
+                                const page = await pdfDoc.getPage(i);
                                 const scale = 1.5;
                                 const viewport = page.getViewport({ scale });
 
@@ -417,10 +424,13 @@ const CourseViewerScreen = ({ route, navigation }) => {
                                     viewport: viewport
                                 }).promise;
 
-                                container.appendChild(canvas);
+                                const wrapper = document.createElement('div');
+                                wrapper.className = 'page-wrapper';
+                                wrapper.appendChild(canvas);
+                                container.appendChild(wrapper);
                             }
 
-                            window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'pdfLoaded' }));
+                            window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'pdfLoaded', numPages: numPages }));
                         } catch (error) {
                             console.error('Erreur:', error);
                             document.getElementById('pdf-container').innerHTML = '<div class="error">Erreur de chargement du PDF: ' + error.message + '</div>';
