@@ -8,6 +8,7 @@ import {
     Alert,
     TextInput,
     ActivityIndicator,
+    Linking,
 } from 'react-native';
 import { useAuth } from '../context/AuthContext';
 import { onboardingAPI, authAPI } from '../utils/api';
@@ -219,12 +220,12 @@ const SettingsScreen = ({ navigation }) => {
                     <SettingItem
                         icon="📄"
                         title="Conditions d'utilisation"
-                        onPress={() => Alert.alert('Info', 'Fonctionnalité à venir')}
+                        onPress={() => Linking.openURL('https://raphaelbenren.github.io/ppe/terms.html')}
                     />
                     <SettingItem
                         icon="🔐"
                         title="Politique de confidentialité"
-                        onPress={() => Alert.alert('Info', 'Fonctionnalité à venir')}
+                        onPress={() => Linking.openURL('https://raphaelbenren.github.io/ppe/privacy.html')}
                     />
                 </View>
 
