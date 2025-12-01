@@ -21,7 +21,7 @@ const generateQCM = async (courseContent, options = {}) => {
         annee = ''
     } = options;
 
-    const prompt = `Tu es un assistant pédagogique expert pour l'école d'ingénieurs ECE.
+    const prompt = `Tu es un assistant pédagogique expert pour étudiants en école d'ingénieurs.
 
 CONTEXTE DES COURS :
 ${courseContent}
@@ -37,6 +37,7 @@ RÈGLES IMPORTANTES :
 - 4 options de réponse par question (A, B, C, D)
 - Une seule bonne réponse par question
 - Fournis une explication claire pour chaque bonne réponse
+- IMPORTANT : Le contenu doit être strictement éducatif et approprié pour tous les âges. Ne génère JAMAIS de contenu violent, sexuel, discriminatoire, ou inapproprié.
 - Adapte la difficulté :
   * Facile : questions de compréhension directe
   * Moyen : questions d'application et d'analyse
@@ -96,7 +97,7 @@ const generateFlashcards = async (courseContent, options = {}) => {
         annee = ''
     } = options;
 
-    const prompt = `Tu es un assistant pédagogique expert pour l'école d'ingénieurs ECE.
+    const prompt = `Tu es un assistant pédagogique expert pour étudiants en école d'ingénieurs.
 
 CONTEXTE DES COURS :
 ${courseContent}
@@ -114,6 +115,7 @@ RÈGLES IMPORTANTES :
 - Inclus définitions, formules, concepts importants
 - Assure-toi que les cartes sont progressives (du simple au complexe)
 - Fournis des exemples pratiques quand c'est pertinent
+- IMPORTANT : Le contenu doit être strictement éducatif et approprié pour tous les âges. Ne génère JAMAIS de contenu violent, sexuel, discriminatoire, ou inapproprié.
 
 FORMAT DE RÉPONSE (JSON strict) :
 {
@@ -206,7 +208,7 @@ Retourne uniquement le texte extrait, sans commentaire ni introduction.`;
 const answerQuestion = async (question, context, options = {}) => {
     const { matiere = '', titre = '' } = options;
 
-    const prompt = `Tu es un assistant pédagogique expert pour l'école d'ingénieurs ECE.
+    const prompt = `Tu es un assistant pédagogique expert pour étudiants en école d'ingénieurs.
 
 CONTEXTE DU COURS :
 ${titre ? `Titre : ${titre}` : ''}
@@ -224,6 +226,7 @@ CONSIGNES :
 - Si la réponse n'est pas dans le contexte, indique-le poliment
 - Utilise des exemples du cours si pertinent
 - Adapte ton langage pour un étudiant ingénieur
+- IMPORTANT : Le contenu doit être strictement éducatif et approprié. Ne génère JAMAIS de contenu violent, sexuel, discriminatoire, ou inapproprié.
 
 Réponds directement sans introduction.`;
 

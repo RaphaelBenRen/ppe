@@ -38,6 +38,13 @@ const apiRequest = async (endpoint, options = {}) => {
 
         return data;
     } catch (error) {
+        // Gestion des erreurs réseau pour des messages user-friendly
+        if (error.message === 'Network request failed') {
+            throw new Error('Connexion impossible. Vérifiez votre connexion internet.');
+        }
+        if (error.name === 'TypeError' && error.message.includes('fetch')) {
+            throw new Error('Impossible de contacter le serveur. Réessayez plus tard.');
+        }
         throw error;
     }
 };
