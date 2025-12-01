@@ -82,8 +82,22 @@ export const onboardingAPI = {
         return apiRequest('/onboarding/profile');
     },
 
+    updateProfile: async (profileData) => {
+        return apiRequest('/onboarding/profile', {
+            method: 'PUT',
+            body: JSON.stringify(profileData),
+        });
+    },
+
     getMatieres: async () => {
         return apiRequest('/onboarding/matieres');
+    },
+
+    changePassword: async (currentPassword, newPassword) => {
+        return apiRequest('/auth/change-password', {
+            method: 'PUT',
+            body: JSON.stringify({ currentPassword, newPassword }),
+        });
     },
 };
 

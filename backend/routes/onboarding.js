@@ -146,6 +146,54 @@ router.get('/profile', authMiddleware, async (req, res) => {
     }
 });
 
+// Route pour modifier le profil utilisateur (nom, prénom, année)
+router.put('/profile', authMiddleware, async (req, res) => {
+    try {
+        const userId = req.user.userId;
+        const { nom, prenom, annee_etude, majeure } = req.body;
+
+        // Mise à jour des infos utilisateur (nom, prénom)
+        if (nom || prenom) {
+            const userUpdate = {};
+            if (nom) userUpdate.nom = nom;
+            if (prenom) userUpdate.prenom = prenom;
+
+            const { error: userError } = await supabase
+                .from('users')
+                .update(userUpdate)
+                .eq('id', userId);
+
+            if (userError) throw userError;
+        }
+
+        // Mise à jour du profil étudiant (année, majeure)
+        if (annee_etude || majeure) {
+            const profileUpdate = {};
+            if (annee_etude) profileUpdate.annee_etude = annee_etude;
+            if (majeure !== undefined) profileUpdate.majeure = majeure;
+
+            const { error: profileError } = await supabase
+                .from('student_profiles')
+                .update(profileUpdate)
+                .eq('user_id', userId);
+
+            if (profileError) throw profileError;
+        }
+
+        res.json({
+            success: true,
+            message: 'Profil mis à jour avec succès !'
+        });
+
+    } catch (error) {
+        console.error('Erreur modification profil:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Erreur lors de la modification du profil.'
+        });
+    }
+});
+
 // Route pour obtenir la liste des matières disponibles
 router.get('/matieres', authMiddleware, async (req, res) => {
     try {

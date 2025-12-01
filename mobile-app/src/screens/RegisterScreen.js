@@ -70,7 +70,7 @@ const RegisterScreen = ({ navigation }) => {
                 <View style={styles.header}>
                     <Text style={styles.logo}>📚</Text>
                     <Text style={styles.title}>Créer un compte</Text>
-                    <Text style={styles.subtitle}>Rejoignez ECE Learning</Text>
+                    <Text style={styles.subtitle}>Rejoignez MemoryLab</Text>
                 </View>
 
                 <View style={styles.form}>
@@ -97,10 +97,10 @@ const RegisterScreen = ({ navigation }) => {
                     </View>
 
                     <View style={styles.inputGroup}>
-                        <Text style={styles.label}>Email ECE</Text>
+                        <Text style={styles.label}>Email</Text>
                         <TextInput
                             style={styles.input}
-                            placeholder="exemple@edu.ece.fr"
+                            placeholder="exemple@email.com"
                             value={formData.email}
                             onChangeText={(value) => updateField('email', value)}
                             keyboardType="email-address"

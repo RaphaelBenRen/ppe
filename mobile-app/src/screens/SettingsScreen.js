@@ -157,13 +157,13 @@ const SettingsScreen = ({ navigation }) => {
                         icon="👤"
                         title="Modifier le profil"
                         subtitle="Nom, prénom, année"
-                        onPress={() => Alert.alert('Info', 'Fonctionnalité à venir')}
+                        onPress={() => navigation.navigate('EditProfile')}
                     />
                     <SettingItem
                         icon="🔒"
                         title="Sécurité"
                         subtitle="Modifier le mot de passe"
-                        onPress={() => Alert.alert('Info', 'Fonctionnalité à venir')}
+                        onPress={() => navigation.navigate('ChangePassword')}
                     />
                     <SettingItem
                         icon="📧"
@@ -240,7 +240,7 @@ const SettingsScreen = ({ navigation }) => {
                 </View>
 
                 <View style={styles.footer}>
-                    <Text style={styles.footerText}>ECE Learning v1.0</Text>
+                    <Text style={styles.footerText}>MemoryLab v1.0</Text>
                 </View>
             </ScrollView>
         </View>

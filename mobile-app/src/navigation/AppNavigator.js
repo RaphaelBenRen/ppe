@@ -21,6 +21,8 @@ import QCMHistoryScreen from '../screens/QCMHistoryScreen';
 import QCMAttemptDetailScreen from '../screens/QCMAttemptDetailScreen';
 import SettingsScreen from '../screens/SettingsScreen';
 import OCRScreen from '../screens/OCRScreen';
+import EditProfileScreen from '../screens/EditProfileScreen';
+import ChangePasswordScreen from '../screens/ChangePasswordScreen';
 
 const Stack = createStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -155,6 +157,8 @@ const AppNavigator = () => {
                         <Stack.Screen name="QCMAttemptDetail" component={QCMAttemptDetailScreen} />
                         <Stack.Screen name="Settings" component={SettingsScreen} />
                         <Stack.Screen name="OCR" component={OCRScreen} />
+                        <Stack.Screen name="EditProfile" component={EditProfileScreen} />
+                        <Stack.Screen name="ChangePassword" component={ChangePasswordScreen} />
                     </React.Fragment>
                 )}
             </Stack.Navigator>

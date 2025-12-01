@@ -268,6 +268,81 @@ router.delete('/delete-account', authMiddleware, async (req, res) => {
     }
 });
 
+// Route pour modifier le mot de passe
+router.put('/change-password', authMiddleware, async (req, res) => {
+    console.log('========== CHANGE PASSWORD REQUEST ==========');
+
+    try {
+        const userId = req.user.userId;
+        const { currentPassword, newPassword } = req.body;
+
+        // Validation
+        if (!currentPassword || !newPassword) {
+            return res.status(400).json({
+                success: false,
+                message: 'Mot de passe actuel et nouveau mot de passe requis.'
+            });
+        }
+
+        if (newPassword.length < 6) {
+            return res.status(400).json({
+                success: false,
+                message: 'Le nouveau mot de passe doit contenir au moins 6 caractères.'
+            });
+        }
+
+        // Récupérer l'utilisateur
+        const { data: users, error: fetchError } = await supabase
+            .from('users')
+            .select('password')
+            .eq('id', userId);
+
+        if (fetchError) throw fetchError;
+
+        if (!users || users.length === 0) {
+            return res.status(404).json({
+                success: false,
+                message: 'Utilisateur non trouvé.'
+            });
+        }
+
+        // Vérifier le mot de passe actuel
+        const isPasswordValid = await bcrypt.compare(currentPassword, users[0].password);
+
+        if (!isPasswordValid) {
+            return res.status(401).json({
+                success: false,
+                message: 'Mot de passe actuel incorrect.'
+            });
+        }
+
+        // Hasher le nouveau mot de passe
+        const hashedPassword = await bcrypt.hash(newPassword, 10);
+
+        // Mettre à jour
+        const { error: updateError } = await supabase
+            .from('users')
+            .update({ password: hashedPassword })
+            .eq('id', userId);
+
+        if (updateError) throw updateError;
+
+        console.log('✅ Mot de passe modifié avec succès');
+
+        res.json({
+            success: true,
+            message: 'Mot de passe modifié avec succès !'
+        });
+
+    } catch (error) {
+        console.error('❌ ERREUR CHANGE PASSWORD:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Erreur lors de la modification du mot de passe.'
+        });
+    }
+});
+
 // Route pour vérifier le token
 router.get('/verify', authMiddleware, async (req, res) => {
     console.log('========== VERIFY REQUEST ==========');

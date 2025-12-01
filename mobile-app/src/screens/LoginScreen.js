@@ -43,7 +43,7 @@ const LoginScreen = ({ navigation }) => {
             <View style={styles.content}>
                 <View style={styles.header}>
                     <Text style={styles.logo}>📚</Text>
-                    <Text style={styles.title}>ECE Learning</Text>
+                    <Text style={styles.title}>MemoryLab</Text>
                     <Text style={styles.subtitle}>Connectez-vous à votre compte</Text>
                 </View>
 
@@ -52,7 +52,7 @@ const LoginScreen = ({ navigation }) => {
                         <Text style={styles.label}>Email</Text>
                         <TextInput
                             style={styles.input}
-                            placeholder="exemple@edu.ece.fr"
+                            placeholder="exemple@email.com"
                             value={email}
                             onChangeText={setEmail}
                             keyboardType="email-address"
