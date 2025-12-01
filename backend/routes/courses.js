@@ -218,15 +218,7 @@ router.post('/upload-from-ocr', authMiddleware, async (req, res) => {
 
         console.log('💾 Sauvegarde du cours OCR en BDD...');
 
-        // Créer un fichier texte avec le contenu extrait
-        const uploadDir = path.join(__dirname, '../../uploads');
-        await fs.mkdir(uploadDir, { recursive: true });
-
-        const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-        const filePath = path.join(uploadDir, uniqueSuffix + '.txt');
-        await fs.writeFile(filePath, content, 'utf-8');
-
-        // Sauvegarder dans la base de données
+        // Sauvegarder dans la base de données avec le contenu texte directement
         const { data: result, error } = await supabase
             .from('courses')
             .insert({
@@ -235,8 +227,9 @@ router.post('/upload-from-ocr', authMiddleware, async (req, res) => {
                 annee_cible,
                 matiere,
                 type_document,
-                file_path: filePath,
+                file_path: 'ocr-content',
                 file_type: 'txt',
+                text_content: content,
                 uploaded_by: req.user.userId
             })
             .select()
@@ -367,7 +360,7 @@ router.get('/:id/content', authMiddleware, async (req, res) => {
     try {
         const { data: courses, error } = await supabase
             .from('courses')
-            .select('file_path, titre, matiere, file_type, edited_content_path')
+            .select('file_path, titre, matiere, file_type, edited_content_path, text_content')
             .eq('id', req.params.id)
             .eq('uploaded_by', req.user.userId);
 
@@ -383,20 +376,42 @@ router.get('/:id/content', authMiddleware, async (req, res) => {
         const course = courses[0];
         let content;
 
-        // Si un contenu édité existe, l'utiliser en priorité
+        // Priorité 1: Contenu édité (fichier)
         if (course.edited_content_path) {
             try {
                 console.log('📖 Lecture du contenu édité:', course.titre);
                 content = await fs.readFile(course.edited_content_path, 'utf-8');
             } catch (readError) {
-                // Si le fichier édité n'existe plus, parser l'original
-                console.log('📖 Fichier édité non trouvé, parsing original:', course.titre);
-                content = await parseDocument(course.file_path);
+                console.log('📖 Fichier édité non trouvé, fallback...');
+                content = null;
             }
-        } else {
-            // Parser le fichier original
-            console.log('📖 Parsing du cours:', course.titre);
-            content = await parseDocument(course.file_path);
+        }
+
+        // Priorité 2: Contenu texte stocké en BDD (cours OCR)
+        if (!content && course.text_content) {
+            console.log('📖 Utilisation du contenu texte stocké en BDD:', course.titre);
+            content = course.text_content;
+        }
+
+        // Priorité 3: Parser le fichier original
+        if (!content && course.file_path && course.file_path !== 'ocr-content') {
+            try {
+                console.log('📖 Parsing du fichier:', course.titre);
+                content = await parseDocument(course.file_path);
+            } catch (parseError) {
+                console.error('Erreur parsing fichier:', parseError);
+                return res.status(500).json({
+                    success: false,
+                    message: 'Impossible de lire le contenu du cours. Le fichier est peut-être inaccessible.'
+                });
+            }
+        }
+
+        if (!content) {
+            return res.status(500).json({
+                success: false,
+                message: 'Aucun contenu disponible pour ce cours.'
+            });
         }
 
         const cleanedContent = content.trim();
@@ -512,10 +527,10 @@ router.put('/:id/content', authMiddleware, async (req, res) => {
             });
         }
 
-        // Récupérer le cours pour vérifier l'appartenance et obtenir le chemin du fichier
+        // Vérifier que le cours appartient à l'utilisateur
         const { data: courses, error: fetchError } = await supabase
             .from('courses')
-            .select('file_path, file_type, edited_content_path')
+            .select('id')
             .eq('id', req.params.id)
             .eq('uploaded_by', req.user.userId);
 
@@ -528,38 +543,14 @@ router.put('/:id/content', authMiddleware, async (req, res) => {
             });
         }
 
-        const course = courses[0];
+        // Sauvegarder le contenu directement en BDD (plus fiable que les fichiers)
+        const { error: updateError } = await supabase
+            .from('courses')
+            .update({ text_content: content })
+            .eq('id', req.params.id)
+            .eq('uploaded_by', req.user.userId);
 
-        if (course.file_type === 'txt') {
-            // Pour les fichiers texte, écraser directement le contenu
-            await fs.writeFile(course.file_path, content, 'utf-8');
-        } else {
-            // Pour les PDF, DOCX, etc., sauvegarder le contenu édité séparément
-            // Le fichier original reste intact
-            let editedPath = course.edited_content_path;
-
-            if (!editedPath) {
-                // Créer un nouveau fichier pour le contenu édité
-                const uploadDir = path.join(__dirname, '../../uploads');
-                const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-                editedPath = path.join(uploadDir, uniqueSuffix + '-edited.txt');
-            }
-
-            // Sauvegarder le contenu édité
-            await fs.writeFile(editedPath, content, 'utf-8');
-
-            // Mettre à jour le chemin du contenu édité dans la base de données
-            // SANS modifier file_path et file_type (on garde le PDF original)
-            const { error: updateError } = await supabase
-                .from('courses')
-                .update({
-                    edited_content_path: editedPath
-                })
-                .eq('id', req.params.id)
-                .eq('uploaded_by', req.user.userId);
-
-            if (updateError) throw updateError;
-        }
+        if (updateError) throw updateError;
 
         console.log('✅ Contenu du cours mis à jour:', req.params.id);
 
