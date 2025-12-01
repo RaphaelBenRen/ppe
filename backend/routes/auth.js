@@ -234,14 +234,21 @@ router.delete('/delete-account', authMiddleware, async (req, res) => {
             .eq('user_id', userId);
         if (coursesError) console.log('Erreur suppression cours:', coursesError);
 
-        // 5. Supprimer le profil onboarding
+        // 5. Supprimer le profil onboarding (user_profiles)
         const { error: profileError } = await supabase
             .from('user_profiles')
             .delete()
             .eq('user_id', userId);
-        if (profileError) console.log('Erreur suppression profil:', profileError);
+        if (profileError) console.log('Erreur suppression user_profiles:', profileError);
 
-        // 6. Supprimer l'utilisateur
+        // 6. Supprimer student_profiles
+        const { error: studentProfileError } = await supabase
+            .from('student_profiles')
+            .delete()
+            .eq('user_id', userId);
+        if (studentProfileError) console.log('Erreur suppression student_profiles:', studentProfileError);
+
+        // 7. Supprimer l'utilisateur
         const { error: userError } = await supabase
             .from('users')
             .delete()
