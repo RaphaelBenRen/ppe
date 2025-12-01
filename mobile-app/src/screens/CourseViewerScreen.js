@@ -17,6 +17,7 @@ import {
 } from 'react-native';
 import { WebView } from 'react-native-webview';
 import { coursesAPI } from '../utils/api';
+import { useAuth } from '../context/AuthContext';
 
 const CHARS_PER_PAGE = 3000;
 
@@ -30,6 +31,7 @@ const HIGHLIGHT_COLORS = [
 
 const CourseViewerScreen = ({ route, navigation }) => {
     const { courseId, courseTitre } = route.params;
+    const { user } = useAuth();
     const [loading, setLoading] = useState(true);
     const [courseData, setCourseData] = useState(null);
     const [currentPage, setCurrentPage] = useState(0);
@@ -231,8 +233,35 @@ const CourseViewerScreen = ({ route, navigation }) => {
     };
 
     const askAIWithSelection = () => {
+        if (!user?.has_ai_access) {
+            Alert.alert(
+                'Accès restreint',
+                'Pour utiliser l\'assistant IA, vous devez entrer un code d\'accès dans les paramètres.',
+                [
+                    { text: 'Annuler', style: 'cancel' },
+                    { text: 'Paramètres', onPress: () => navigation.navigate('Settings') }
+                ]
+            );
+            setShowColorPicker(false);
+            return;
+        }
         setShowColorPicker(false);
         setAIQuestion(`Peux-tu m'expliquer ce passage : "${selectedText}"`);
+        setShowAIModal(true);
+    };
+
+    const openAIModal = () => {
+        if (!user?.has_ai_access) {
+            Alert.alert(
+                'Accès restreint',
+                'Pour utiliser l\'assistant IA, vous devez entrer un code d\'accès dans les paramètres.',
+                [
+                    { text: 'Annuler', style: 'cancel' },
+                    { text: 'Paramètres', onPress: () => navigation.navigate('Settings') }
+                ]
+            );
+            return;
+        }
         setShowAIModal(true);
     };
 
@@ -621,7 +650,7 @@ const CourseViewerScreen = ({ route, navigation }) => {
                 <TouchableOpacity style={styles.aiButton} onPress={() => {
                     setSelectionContext('');
                     setAIQuestion('');
-                    setShowAIModal(true);
+                    openAIModal();
                 }}>
                     <Text style={styles.aiButtonText}>?</Text>
                 </TouchableOpacity>

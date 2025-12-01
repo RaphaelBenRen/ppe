@@ -9,17 +9,21 @@ import {
     TextInput,
     ActivityIndicator,
     Linking,
+    Modal,
 } from 'react-native';
 import { useAuth } from '../context/AuthContext';
 import { onboardingAPI, authAPI } from '../utils/api';
 
 const SettingsScreen = ({ navigation }) => {
-    const { user, logout } = useAuth();
+    const { user, logout, updateUser } = useAuth();
     const [profile, setProfile] = useState(null);
     const [loading, setLoading] = useState(true);
     const [editing, setEditing] = useState(false);
     const [editedProfile, setEditedProfile] = useState({});
     const [deleting, setDeleting] = useState(false);
+    const [showCodeModal, setShowCodeModal] = useState(false);
+    const [accessCode, setAccessCode] = useState('');
+    const [redeemingCode, setRedeemingCode] = useState(false);
 
     useEffect(() => {
         loadProfile();
@@ -84,6 +88,31 @@ const SettingsScreen = ({ navigation }) => {
             Alert.alert('Erreur', error.message || 'Impossible de supprimer le compte');
         } finally {
             setDeleting(false);
+        }
+    };
+
+    const handleRedeemCode = async () => {
+        if (!accessCode.trim()) {
+            Alert.alert('Erreur', 'Veuillez entrer un code.');
+            return;
+        }
+
+        setRedeemingCode(true);
+        try {
+            const response = await authAPI.redeemCode(accessCode.trim());
+            if (response.success) {
+                // Mettre à jour l'utilisateur dans le contexte
+                if (updateUser) {
+                    updateUser({ ...user, has_ai_access: true });
+                }
+                setShowCodeModal(false);
+                setAccessCode('');
+                Alert.alert('Succès', response.message || 'Code validé ! Vous avez maintenant accès aux fonctionnalités IA.');
+            }
+        } catch (error) {
+            Alert.alert('Erreur', error.message || 'Code invalide.');
+        } finally {
+            setRedeemingCode(false);
         }
     };
 
@@ -208,6 +237,26 @@ const SettingsScreen = ({ navigation }) => {
                     />
                 </View>
 
+                {/* Section Accès IA */}
+                <SectionHeader title="ACCÈS IA" />
+                <View style={styles.settingsGroup}>
+                    {user?.has_ai_access ? (
+                        <SettingItem
+                            icon="✅"
+                            title="Accès IA activé"
+                            subtitle="Génération de QCM et Flashcards disponible"
+                            showArrow={false}
+                        />
+                    ) : (
+                        <SettingItem
+                            icon="🔑"
+                            title="Entrer un code d'accès"
+                            subtitle="Débloquer les fonctionnalités IA"
+                            onPress={() => setShowCodeModal(true)}
+                        />
+                    )}
+                </View>
+
                 {/* Section À propos */}
                 <SectionHeader title="À PROPOS" />
                 <View style={styles.settingsGroup}>
@@ -243,6 +292,57 @@ const SettingsScreen = ({ navigation }) => {
                     <Text style={styles.footerText}>MemoryLab v1.0</Text>
                 </View>
             </ScrollView>
+
+            {/* Modal Code d'accès */}
+            <Modal
+                visible={showCodeModal}
+                transparent={true}
+                animationType="fade"
+                onRequestClose={() => setShowCodeModal(false)}
+            >
+                <View style={styles.modalOverlay}>
+                    <View style={styles.modalContent}>
+                        <Text style={styles.modalTitle}>Code d'accès IA</Text>
+                        <Text style={styles.modalSubtitle}>
+                            Entrez votre code pour débloquer la génération de QCM et Flashcards par IA.
+                        </Text>
+
+                        <TextInput
+                            style={styles.codeInput}
+                            placeholder="Entrez votre code"
+                            placeholderTextColor="#999"
+                            value={accessCode}
+                            onChangeText={setAccessCode}
+                            autoCapitalize="characters"
+                            autoCorrect={false}
+                        />
+
+                        <View style={styles.modalButtons}>
+                            <TouchableOpacity
+                                style={styles.modalCancelButton}
+                                onPress={() => {
+                                    setShowCodeModal(false);
+                                    setAccessCode('');
+                                }}
+                            >
+                                <Text style={styles.modalCancelButtonText}>Annuler</Text>
+                            </TouchableOpacity>
+
+                            <TouchableOpacity
+                                style={[styles.modalConfirmButton, redeemingCode && styles.buttonDisabled]}
+                                onPress={handleRedeemCode}
+                                disabled={redeemingCode}
+                            >
+                                {redeemingCode ? (
+                                    <ActivityIndicator size="small" color="#fff" />
+                                ) : (
+                                    <Text style={styles.modalConfirmButtonText}>Valider</Text>
+                                )}
+                            </TouchableOpacity>
+                        </View>
+                    </View>
+                </View>
+            </Modal>
         </View>
     );
 };
@@ -435,6 +535,78 @@ const styles = StyleSheet.create({
     footerText: {
         fontSize: 12,
         color: '#c0c0c0',
+    },
+    // Modal styles
+    modalOverlay: {
+        flex: 1,
+        backgroundColor: 'rgba(0, 0, 0, 0.5)',
+        justifyContent: 'center',
+        alignItems: 'center',
+        padding: 20,
+    },
+    modalContent: {
+        backgroundColor: '#fff',
+        borderRadius: 16,
+        padding: 24,
+        width: '100%',
+        maxWidth: 340,
+    },
+    modalTitle: {
+        fontSize: 20,
+        fontWeight: '600',
+        color: '#1a1a2e',
+        textAlign: 'center',
+        marginBottom: 8,
+    },
+    modalSubtitle: {
+        fontSize: 14,
+        color: '#666',
+        textAlign: 'center',
+        marginBottom: 20,
+        lineHeight: 20,
+    },
+    codeInput: {
+        backgroundColor: '#f8f9fa',
+        borderRadius: 12,
+        padding: 16,
+        fontSize: 18,
+        textAlign: 'center',
+        fontWeight: '600',
+        letterSpacing: 2,
+        borderWidth: 1,
+        borderColor: '#e2e8f0',
+        marginBottom: 20,
+    },
+    modalButtons: {
+        flexDirection: 'row',
+        gap: 12,
+    },
+    modalCancelButton: {
+        flex: 1,
+        backgroundColor: '#f0f0f0',
+        borderRadius: 12,
+        padding: 14,
+        alignItems: 'center',
+    },
+    modalCancelButtonText: {
+        color: '#666',
+        fontSize: 16,
+        fontWeight: '600',
+    },
+    modalConfirmButton: {
+        flex: 1,
+        backgroundColor: '#1a1a2e',
+        borderRadius: 12,
+        padding: 14,
+        alignItems: 'center',
+    },
+    modalConfirmButtonText: {
+        color: '#fff',
+        fontSize: 16,
+        fontWeight: '600',
+    },
+    buttonDisabled: {
+        opacity: 0.7,
     },
 });
 

@@ -74,6 +74,17 @@ export const authAPI = {
             method: 'DELETE',
         });
     },
+
+    redeemCode: async (code) => {
+        return apiRequest('/auth/redeem-code', {
+            method: 'POST',
+            body: JSON.stringify({ code }),
+        });
+    },
+
+    getAiAccessStatus: async () => {
+        return apiRequest('/auth/ai-access-status');
+    },
 };
 
 // API d'onboarding

@@ -105,6 +105,17 @@ const DashboardScreen = ({ navigation }) => {
     };
 
     const handleGenerateQCM = (course) => {
+        if (!user?.has_ai_access) {
+            Alert.alert(
+                'Accès restreint',
+                'Pour générer des QCM par IA, vous devez entrer un code d\'accès dans les paramètres.',
+                [
+                    { text: 'Annuler', style: 'cancel' },
+                    { text: 'Paramètres', onPress: () => navigation.navigate('Settings') }
+                ]
+            );
+            return;
+        }
         setSelectedCourse(course);
         setShowQCMModal(true);
     };
@@ -126,6 +137,17 @@ const DashboardScreen = ({ navigation }) => {
     };
 
     const handleGenerateFlashcards = (course) => {
+        if (!user?.has_ai_access) {
+            Alert.alert(
+                'Accès restreint',
+                'Pour générer des Flashcards par IA, vous devez entrer un code d\'accès dans les paramètres.',
+                [
+                    { text: 'Annuler', style: 'cancel' },
+                    { text: 'Paramètres', onPress: () => navigation.navigate('Settings') }
+                ]
+            );
+            return;
+        }
         setSelectedCourse(course);
         setShowFlashcardsModal(true);
     };

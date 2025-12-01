@@ -92,7 +92,8 @@ router.post('/register', async (req, res) => {
                     email,
                     nom,
                     prenom,
-                    onboarding_complete: false
+                    onboarding_complete: false,
+                    has_ai_access: false
                 },
                 token
             }
@@ -131,7 +132,7 @@ router.post('/login', async (req, res) => {
         // Recherche de l'utilisateur
         const { data: users, error } = await supabase
             .from('users')
-            .select('id, email, password, nom, prenom')
+            .select('id, email, password, nom, prenom, has_ai_access')
             .eq('email', email);
 
         console.log('Résultat recherche:', { users, error });
@@ -179,7 +180,8 @@ router.post('/login', async (req, res) => {
                     email: user.email,
                     nom: user.nom,
                     prenom: user.prenom,
-                    onboarding_complete: true
+                    onboarding_complete: true,
+                    has_ai_access: user.has_ai_access || false
                 },
                 token
             }
@@ -351,7 +353,7 @@ router.get('/verify', authMiddleware, async (req, res) => {
     try {
         const { data: users, error } = await supabase
             .from('users')
-            .select('id, email, nom, prenom')
+            .select('id, email, nom, prenom, has_ai_access')
             .eq('id', req.user.userId);
 
         console.log('Résultat recherche:', { users, error });
@@ -377,13 +379,172 @@ router.get('/verify', authMiddleware, async (req, res) => {
                     email: user.email,
                     nom: user.nom,
                     prenom: user.prenom,
-                    onboarding_complete: true
+                    onboarding_complete: true,
+                    has_ai_access: user.has_ai_access || false
                 }
             }
         });
 
     } catch (error) {
         console.error('❌ ERREUR VERIFY:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Erreur lors de la vérification.'
+        });
+    }
+});
+
+// Route pour valider un code d'accès IA
+router.post('/redeem-code', authMiddleware, async (req, res) => {
+    console.log('========== REDEEM CODE REQUEST ==========');
+
+    try {
+        const userId = req.user.userId;
+        const { code } = req.body;
+
+        if (!code) {
+            return res.status(400).json({
+                success: false,
+                message: 'Code requis.'
+            });
+        }
+
+        const codeUpper = code.toUpperCase().trim();
+
+        // Vérifier si l'utilisateur a déjà l'accès IA
+        const { data: userData, error: userError } = await supabase
+            .from('users')
+            .select('has_ai_access')
+            .eq('id', userId)
+            .single();
+
+        if (userError) throw userError;
+
+        if (userData?.has_ai_access) {
+            return res.status(400).json({
+                success: false,
+                message: 'Vous avez déjà accès aux fonctionnalités IA.'
+            });
+        }
+
+        // Rechercher le code
+        const { data: accessCode, error: codeError } = await supabase
+            .from('access_codes')
+            .select('*')
+            .eq('code', codeUpper)
+            .single();
+
+        if (codeError || !accessCode) {
+            return res.status(404).json({
+                success: false,
+                message: 'Code invalide.'
+            });
+        }
+
+        // Vérifier si le code est actif
+        if (!accessCode.is_active) {
+            return res.status(400).json({
+                success: false,
+                message: 'Ce code n\'est plus actif.'
+            });
+        }
+
+        // Vérifier si le code n'a pas expiré
+        if (accessCode.expires_at && new Date(accessCode.expires_at) < new Date()) {
+            return res.status(400).json({
+                success: false,
+                message: 'Ce code a expiré.'
+            });
+        }
+
+        // Vérifier si le code n'a pas atteint son max d'utilisations
+        if (accessCode.max_uses && accessCode.current_uses >= accessCode.max_uses) {
+            return res.status(400).json({
+                success: false,
+                message: 'Ce code a atteint son nombre maximum d\'utilisations.'
+            });
+        }
+
+        // Vérifier si l'utilisateur n'a pas déjà utilisé ce code
+        const { data: existingRedemption } = await supabase
+            .from('code_redemptions')
+            .select('id')
+            .eq('user_id', userId)
+            .eq('code_id', accessCode.id)
+            .single();
+
+        if (existingRedemption) {
+            return res.status(400).json({
+                success: false,
+                message: 'Vous avez déjà utilisé ce code.'
+            });
+        }
+
+        // Tout est OK, activer l'accès IA pour l'utilisateur
+        const { error: updateUserError } = await supabase
+            .from('users')
+            .update({ has_ai_access: true })
+            .eq('id', userId);
+
+        if (updateUserError) throw updateUserError;
+
+        // Enregistrer l'utilisation du code
+        const { error: redemptionError } = await supabase
+            .from('code_redemptions')
+            .insert({
+                user_id: userId,
+                code_id: accessCode.id
+            });
+
+        if (redemptionError) throw redemptionError;
+
+        // Incrémenter le compteur d'utilisations
+        const { error: updateCodeError } = await supabase
+            .from('access_codes')
+            .update({ current_uses: accessCode.current_uses + 1 })
+            .eq('id', accessCode.id);
+
+        if (updateCodeError) console.log('Erreur update compteur:', updateCodeError);
+
+        console.log('✅ Code validé avec succès pour user:', userId);
+
+        res.json({
+            success: true,
+            message: 'Code validé ! Vous avez maintenant accès aux fonctionnalités IA.',
+            data: {
+                has_ai_access: true
+            }
+        });
+
+    } catch (error) {
+        console.error('❌ ERREUR REDEEM CODE:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Erreur lors de la validation du code.'
+        });
+    }
+});
+
+// Route pour vérifier le statut d'accès IA
+router.get('/ai-access-status', authMiddleware, async (req, res) => {
+    try {
+        const { data: user, error } = await supabase
+            .from('users')
+            .select('has_ai_access')
+            .eq('id', req.user.userId)
+            .single();
+
+        if (error) throw error;
+
+        res.json({
+            success: true,
+            data: {
+                has_ai_access: user?.has_ai_access || false
+            }
+        });
+
+    } catch (error) {
+        console.error('❌ ERREUR AI ACCESS STATUS:', error);
         res.status(500).json({
             success: false,
             message: 'Erreur lors de la vérification.'
