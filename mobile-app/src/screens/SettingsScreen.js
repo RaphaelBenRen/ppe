@@ -10,7 +10,7 @@ import {
     ActivityIndicator,
 } from 'react-native';
 import { useAuth } from '../context/AuthContext';
-import { onboardingAPI } from '../utils/api';
+import { onboardingAPI, authAPI } from '../utils/api';
 
 const SettingsScreen = ({ navigation }) => {
     const { user, logout } = useAuth();
@@ -18,6 +18,7 @@ const SettingsScreen = ({ navigation }) => {
     const [loading, setLoading] = useState(true);
     const [editing, setEditing] = useState(false);
     const [editedProfile, setEditedProfile] = useState({});
+    const [deleting, setDeleting] = useState(false);
 
     useEffect(() => {
         loadProfile();
@@ -50,6 +51,39 @@ const SettingsScreen = ({ navigation }) => {
                 },
             ]
         );
+    };
+
+    const handleDeleteAccount = () => {
+        Alert.alert(
+            'Supprimer mon compte',
+            'Cette action est IRRÉVERSIBLE. Toutes vos données seront définitivement supprimées :\n\n• Vos cours\n• Vos QCMs\n• Vos flashcards\n• Votre profil',
+            [
+                { text: 'Annuler', style: 'cancel' },
+                {
+                    text: 'Supprimer définitivement',
+                    style: 'destructive',
+                    onPress: confirmDeleteAccount,
+                },
+            ]
+        );
+    };
+
+    const confirmDeleteAccount = async () => {
+        setDeleting(true);
+        try {
+            const response = await authAPI.deleteAccount();
+            if (response.success) {
+                Alert.alert(
+                    'Compte supprimé',
+                    'Votre compte et toutes vos données ont été supprimés.',
+                    [{ text: 'OK', onPress: logout }]
+                );
+            }
+        } catch (error) {
+            Alert.alert('Erreur', error.message || 'Impossible de supprimer le compte');
+        } finally {
+            setDeleting(false);
+        }
     };
 
     const SettingItem = ({ icon, title, subtitle, onPress, danger, showArrow = true }) => (
@@ -166,9 +200,10 @@ const SettingsScreen = ({ navigation }) => {
                     />
                     <SettingItem
                         icon="🗑️"
-                        title="Supprimer mes données"
-                        subtitle="Irréversible"
-                        onPress={() => Alert.alert('Info', 'Contactez le support')}
+                        title="Supprimer mon compte"
+                        subtitle="Supprime toutes vos données"
+                        onPress={handleDeleteAccount}
+                        danger
                     />
                 </View>
 

@@ -56,6 +56,12 @@ export const authAPI = {
     verify: async () => {
         return apiRequest('/auth/verify');
     },
+
+    deleteAccount: async () => {
+        return apiRequest('/auth/delete-account', {
+            method: 'DELETE',
+        });
+    },
 };
 
 // API d'onboarding

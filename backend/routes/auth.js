@@ -196,6 +196,78 @@ router.post('/login', async (req, res) => {
     }
 });
 
+// Route pour supprimer le compte (requis par Apple pour l'App Store)
+router.delete('/delete-account', authMiddleware, async (req, res) => {
+    console.log('========== DELETE ACCOUNT REQUEST ==========');
+    console.log('User ID:', req.user?.userId);
+
+    try {
+        const userId = req.user.userId;
+
+        // Supprimer toutes les données de l'utilisateur dans l'ordre (contraintes FK)
+
+        // 1. Supprimer les tentatives de QCM
+        const { error: attemptsError } = await supabase
+            .from('qcm_attempts')
+            .delete()
+            .eq('user_id', userId);
+        if (attemptsError) console.log('Erreur suppression attempts:', attemptsError);
+
+        // 2. Supprimer les QCMs
+        const { error: qcmError } = await supabase
+            .from('qcms')
+            .delete()
+            .eq('user_id', userId);
+        if (qcmError) console.log('Erreur suppression QCMs:', qcmError);
+
+        // 3. Supprimer les flashcards
+        const { error: flashcardsError } = await supabase
+            .from('flashcard_sets')
+            .delete()
+            .eq('user_id', userId);
+        if (flashcardsError) console.log('Erreur suppression flashcards:', flashcardsError);
+
+        // 4. Supprimer les cours
+        const { error: coursesError } = await supabase
+            .from('courses')
+            .delete()
+            .eq('user_id', userId);
+        if (coursesError) console.log('Erreur suppression cours:', coursesError);
+
+        // 5. Supprimer le profil onboarding
+        const { error: profileError } = await supabase
+            .from('user_profiles')
+            .delete()
+            .eq('user_id', userId);
+        if (profileError) console.log('Erreur suppression profil:', profileError);
+
+        // 6. Supprimer l'utilisateur
+        const { error: userError } = await supabase
+            .from('users')
+            .delete()
+            .eq('id', userId);
+
+        if (userError) {
+            console.log('❌ Erreur suppression utilisateur:', userError);
+            throw userError;
+        }
+
+        console.log('✅ Compte supprimé avec succès');
+
+        res.json({
+            success: true,
+            message: 'Votre compte et toutes vos données ont été supprimés.'
+        });
+
+    } catch (error) {
+        console.error('❌ ERREUR DELETE ACCOUNT:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Erreur lors de la suppression du compte: ' + error.message
+        });
+    }
+});
+
 // Route pour vérifier le token
 router.get('/verify', authMiddleware, async (req, res) => {
     console.log('========== VERIFY REQUEST ==========');
