@@ -1,46 +1,100 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
     View,
     Text,
     StyleSheet,
     FlatList,
     TouchableOpacity,
-    Dimensions,
     useWindowDimensions,
+    Alert,
+    ActivityIndicator,
 } from 'react-native';
 import { useData } from '../context/DataContext';
-
-const { width: SCREEN_WIDTH } = Dimensions.get('window');
+import { flashcardsAPI } from '../utils/api';
 
 const FlashcardsScreen = ({ navigation }) => {
-    const { flashcards } = useData();
+    const { flashcards, refreshFlashcards } = useData();
     const { width } = useWindowDimensions();
     const isTablet = width >= 768;
+    const [deletingId, setDeletingId] = useState(null);
+
+    const handleDeleteFlashcard = (flashcard) => {
+        Alert.alert(
+            'Supprimer les flashcards',
+            `Voulez-vous vraiment supprimer "${flashcard.titre}" ?`,
+            [
+                { text: 'Annuler', style: 'cancel' },
+                {
+                    text: 'Supprimer',
+                    style: 'destructive',
+                    onPress: async () => {
+                        try {
+                            setDeletingId(flashcard.id);
+                            await flashcardsAPI.deleteFlashcardSet(flashcard.id);
+                            await refreshFlashcards();
+                        } catch (error) {
+                            Alert.alert('Erreur', error.message || 'Impossible de supprimer les flashcards');
+                        } finally {
+                            setDeletingId(null);
+                        }
+                    }
+                }
+            ]
+        );
+    };
 
     const renderFlashcardSet = ({ item }) => (
-        <TouchableOpacity
-            style={styles.flashcardCard}
-            onPress={() => navigation.navigate('FlashcardDetail', { flashcardId: item.id, flashcardTitle: item.titre })}
-        >
-            <View style={styles.cardHeader}>
-                <Text style={styles.cardTitle}>{item.titre}</Text>
-                <Text style={styles.cardCount}>{item.nombre_flashcards} cartes</Text>
+        <View style={styles.flashcardCard}>
+            <TouchableOpacity
+                style={styles.flashcardMain}
+                onPress={() => navigation.navigate('FlashcardDetail', { flashcardId: item.id, flashcardTitle: item.titre })}
+                activeOpacity={0.7}
+            >
+                <View style={styles.flashcardIcon}>
+                    <Text style={styles.flashcardIconText}>☆</Text>
+                </View>
+                <View style={styles.flashcardInfo}>
+                    <Text style={styles.flashcardTitle} numberOfLines={1}>{item.titre}</Text>
+                    <Text style={styles.flashcardMeta}>
+                        {item.nombre_flashcards} cartes • {new Date(item.created_at).toLocaleDateString()}
+                    </Text>
+                </View>
+                <Text style={styles.flashcardArrow}>›</Text>
+            </TouchableOpacity>
+            <View style={styles.flashcardActions}>
+                <TouchableOpacity
+                    style={styles.actionBtn}
+                    onPress={() => navigation.navigate('FlashcardDetail', { flashcardId: item.id, flashcardTitle: item.titre })}
+                >
+                    <Text style={styles.actionBtnText}>Réviser</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                    style={[styles.actionBtn, styles.deleteBtn]}
+                    onPress={() => handleDeleteFlashcard(item)}
+                    disabled={deletingId === item.id}
+                >
+                    {deletingId === item.id ? (
+                        <ActivityIndicator size="small" color="#e53e3e" />
+                    ) : (
+                        <Text style={styles.deleteBtnText}>Supprimer</Text>
+                    )}
+                </TouchableOpacity>
             </View>
-            <Text style={styles.cardInfo}>
-                Créé le {new Date(item.created_at).toLocaleDateString()}
-            </Text>
-        </TouchableOpacity>
+        </View>
     );
 
     return (
         <View style={styles.container}>
             <View style={styles.header}>
                 <Text style={[styles.headerTitle, isTablet && styles.headerTitleTablet]}>Mes Flashcards</Text>
+                <Text style={styles.headerCount}>{flashcards.length}</Text>
             </View>
 
             {flashcards.length === 0 ? (
                 <View style={styles.emptyContainer}>
-                    <Text style={styles.emptyIcon}>F</Text>
+                    <View style={styles.emptyIconContainer}>
+                        <Text style={styles.emptyIcon}>☆</Text>
+                    </View>
                     <Text style={[styles.emptyText, isTablet && styles.emptyTextTablet]}>Aucune flashcard générée</Text>
                     <Text style={[styles.emptySubtext, isTablet && styles.emptySubtextTablet]}>
                         Uploadez un cours et générez vos premières flashcards !
@@ -51,9 +105,7 @@ const FlashcardsScreen = ({ navigation }) => {
                     data={flashcards}
                     renderItem={renderFlashcardSet}
                     keyExtractor={(item) => item.id.toString()}
-                    contentContainerStyle={[styles.list, isTablet && styles.listTablet]}
-                    numColumns={isTablet ? 2 : 1}
-                    key={isTablet ? 'tablet' : 'phone'}
+                    contentContainerStyle={styles.list}
                 />
             )}
         </View>
@@ -67,9 +119,11 @@ const styles = StyleSheet.create({
     },
     header: {
         backgroundColor: '#f8f9fa',
-        paddingHorizontal: '5%',
+        paddingHorizontal: 20,
         paddingTop: 55,
         paddingBottom: 15,
+        flexDirection: 'row',
+        alignItems: 'center',
     },
     headerTitle: {
         fontSize: 22,
@@ -78,66 +132,114 @@ const styles = StyleSheet.create({
     },
     headerTitleTablet: {
         fontSize: 28,
-        textAlign: 'center',
+    },
+    headerCount: {
+        marginLeft: 10,
+        fontSize: 14,
+        color: '#8a8a8a',
+        backgroundColor: '#e8e8e8',
+        paddingHorizontal: 10,
+        paddingVertical: 2,
+        borderRadius: 10,
     },
     list: {
-        paddingHorizontal: '5%',
+        paddingHorizontal: 20,
         paddingTop: 10,
         paddingBottom: 20,
     },
-    listTablet: {
-        paddingHorizontal: '3%',
-    },
     flashcardCard: {
         backgroundColor: '#fff',
-        borderRadius: 12,
-        padding: 15,
-        marginBottom: 15,
-        marginHorizontal: SCREEN_WIDTH >= 768 ? 8 : 0,
-        flex: SCREEN_WIDTH >= 768 ? 1 : undefined,
-        maxWidth: SCREEN_WIDTH >= 768 ? '48%' : '100%',
+        borderRadius: 14,
+        marginBottom: 12,
         shadowColor: '#000',
         shadowOffset: { width: 0, height: 1 },
-        shadowOpacity: 0.05,
-        shadowRadius: 4,
+        shadowOpacity: 0.04,
+        shadowRadius: 6,
         elevation: 2,
     },
-    cardHeader: {
+    flashcardMain: {
         flexDirection: 'row',
-        justifyContent: 'space-between',
         alignItems: 'center',
-        marginBottom: 8,
+        padding: 16,
     },
-    cardTitle: {
-        fontSize: 16,
-        fontWeight: '600',
-        color: '#1a1a2e',
-        flex: 1,
-    },
-    cardCount: {
-        fontSize: 12,
-        color: '#1a1a2e',
-        backgroundColor: '#e8eaed',
-        paddingHorizontal: 10,
-        paddingVertical: 4,
+    flashcardIcon: {
+        width: 44,
+        height: 44,
         borderRadius: 12,
-        fontWeight: '600',
+        backgroundColor: '#f0f0f0',
+        justifyContent: 'center',
+        alignItems: 'center',
     },
-    cardInfo: {
+    flashcardIconText: {
+        fontSize: 22,
+        fontWeight: '600',
+        color: '#1a1a2e',
+    },
+    flashcardInfo: {
+        flex: 1,
+        marginLeft: 14,
+    },
+    flashcardTitle: {
+        fontSize: 15,
+        fontWeight: '600',
+        color: '#1a1a2e',
+    },
+    flashcardMeta: {
         fontSize: 12,
-        color: '#666',
+        color: '#8a8a8a',
+        marginTop: 3,
+    },
+    flashcardArrow: {
+        fontSize: 24,
+        color: '#c0c0c0',
+        fontWeight: '300',
+    },
+    flashcardActions: {
+        flexDirection: 'row',
+        borderTopWidth: 1,
+        borderTopColor: '#f0f0f0',
+        padding: 10,
+        gap: 8,
+    },
+    actionBtn: {
+        flex: 1,
+        paddingVertical: 8,
+        borderRadius: 8,
+        backgroundColor: '#f5f5f5',
+        alignItems: 'center',
+    },
+    actionBtnText: {
+        fontSize: 12,
+        fontWeight: '600',
+        color: '#1a1a2e',
+    },
+    deleteBtn: {
+        backgroundColor: '#fff5f5',
+    },
+    deleteBtnText: {
+        fontSize: 12,
+        fontWeight: '600',
+        color: '#e53e3e',
     },
     emptyContainer: {
         flex: 1,
         justifyContent: 'center',
         alignItems: 'center',
-        paddingHorizontal: '10%',
+        paddingHorizontal: 40,
+    },
+    emptyIconContainer: {
+        width: 80,
+        height: 80,
+        borderRadius: 20,
+        backgroundColor: '#f0f0f0',
+        justifyContent: 'center',
+        alignItems: 'center',
+        marginBottom: 20,
     },
     emptyIcon: {
-        fontSize: 60,
-        marginBottom: 20,
+        fontSize: 48,
+        fontWeight: '600',
         color: '#1a1a2e',
-        fontWeight: '700',
     },
     emptyText: {
         fontSize: 18,
@@ -150,7 +252,7 @@ const styles = StyleSheet.create({
     },
     emptySubtext: {
         fontSize: 14,
-        color: '#666',
+        color: '#8a8a8a',
         textAlign: 'center',
     },
     emptySubtextTablet: {

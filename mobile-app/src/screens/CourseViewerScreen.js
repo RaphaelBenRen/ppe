@@ -52,6 +52,7 @@ const CourseViewerScreen = ({ route, navigation }) => {
     const [editedContent, setEditedContent] = useState('');
     const [originalFullContent, setOriginalFullContent] = useState('');
     const [saving, setSaving] = useState(false);
+    const [reformatting, setReformatting] = useState(false);
     const webViewRef = useRef(null);
     const pdfWebViewRef = useRef(null);
     const { width } = useWindowDimensions();
@@ -123,39 +124,66 @@ const CourseViewerScreen = ({ route, navigation }) => {
 
     const formatContent = (text) => {
         if (!text) return '';
+
         let formatted = text
+            // Normaliser les sauts de ligne
             .replace(/\r\n/g, '\n')
             .replace(/\r/g, '\n')
-            .replace(/[^\S\n]+/g, ' ')
-            .replace(/\.(\s*)([A-Z])/g, '.\n\n$2')
-            .replace(/:(\s*)([-•])/g, ':\n$2')
-            .replace(/\n\s*[-•]/g, '\n\n•')
-            .replace(/\n([A-Z][A-Z\s]{5,})\n/g, '\n\n$1\n\n')
+            // Remplacer les tabulations par des espaces
+            .replace(/\t/g, '    ')
+            // Supprimer les espaces en fin de ligne (mais pas les sauts de ligne)
+            .replace(/[ \t]+$/gm, '')
+            // Limiter les sauts de ligne excessifs (max 2 lignes vides)
             .replace(/\n{4,}/g, '\n\n\n')
-            .split('\n')
-            .map(line => line.trim())
-            .join('\n')
+            // Supprimer les espaces multiples sur une même ligne (mais préserver l'indentation en début)
+            .replace(/([^\n]) {2,}/g, '$1 ')
             .trim();
+
         return formatted;
     };
 
     const paginateContent = (content) => {
         const formatted = formatContent(content);
-        const paragraphs = formatted.split('\n\n');
+
+        // Si le contenu est assez court, pas besoin de paginer
+        if (formatted.length <= CHARS_PER_PAGE) {
+            return [formatted];
+        }
+
+        // Diviser par blocs de texte (lignes vides = séparateur de paragraphe)
+        const blocks = formatted.split(/\n\n+/);
         const pagesArray = [];
         let currentPageContent = '';
 
-        for (const paragraph of paragraphs) {
-            if ((currentPageContent + '\n\n' + paragraph).length > CHARS_PER_PAGE && currentPageContent.length > 0) {
-                pagesArray.push(currentPageContent.trim());
-                currentPageContent = paragraph;
+        for (const block of blocks) {
+            const blockWithSeparator = currentPageContent ? '\n\n' + block : block;
+
+            if ((currentPageContent + blockWithSeparator).length > CHARS_PER_PAGE) {
+                // Si le bloc actuel dépasse la limite
+                if (currentPageContent.length > 0) {
+                    // Sauvegarder la page actuelle
+                    pagesArray.push(currentPageContent);
+                    currentPageContent = block;
+                } else {
+                    // Le bloc est trop grand, le diviser par lignes
+                    const lines = block.split('\n');
+                    for (const line of lines) {
+                        const lineWithSeparator = currentPageContent ? '\n' + line : line;
+                        if ((currentPageContent + lineWithSeparator).length > CHARS_PER_PAGE && currentPageContent.length > 0) {
+                            pagesArray.push(currentPageContent);
+                            currentPageContent = line;
+                        } else {
+                            currentPageContent += lineWithSeparator;
+                        }
+                    }
+                }
             } else {
-                currentPageContent += (currentPageContent ? '\n\n' : '') + paragraph;
+                currentPageContent += blockWithSeparator;
             }
         }
 
         if (currentPageContent.trim()) {
-            pagesArray.push(currentPageContent.trim());
+            pagesArray.push(currentPageContent);
         }
 
         return pagesArray.length > 0 ? pagesArray : [formatted];
@@ -362,6 +390,54 @@ const CourseViewerScreen = ({ route, navigation }) => {
         }
     };
 
+    // Fonction pour reformater le contenu avec l'IA
+    const handleReformat = async () => {
+        if (!user?.has_ai_access) {
+            Alert.alert(
+                'Accès restreint',
+                'Pour reformater avec l\'IA, vous devez entrer un code d\'accès dans les paramètres.',
+                [
+                    { text: 'Annuler', style: 'cancel' },
+                    { text: 'Paramètres', onPress: () => navigation.navigate('Settings') }
+                ]
+            );
+            return;
+        }
+
+        Alert.alert(
+            'Reformater avec l\'IA',
+            'L\'IA va améliorer la mise en page du texte (paragraphes, listes, structure). Cette opération peut prendre quelques secondes.',
+            [
+                { text: 'Annuler', style: 'cancel' },
+                {
+                    text: 'Reformater',
+                    onPress: async () => {
+                        setReformatting(true);
+                        // Passer en mode texte pour voir le résultat
+                        if (viewMode === 'original') {
+                            setViewMode('text');
+                        }
+                        try {
+                            const response = await coursesAPI.reformatContent(courseId);
+                            if (response.success && response.data?.content) {
+                                const newContent = response.data.content;
+                                setOriginalFullContent(newContent);
+                                const paginatedContent = paginateContent(newContent);
+                                setPages(paginatedContent);
+                                setCurrentPage(0);
+                                Alert.alert('Succès', 'Le texte a été reformaté avec succès !');
+                            }
+                        } catch (error) {
+                            Alert.alert('Erreur', error.message || 'Erreur lors du reformatage');
+                        } finally {
+                            setReformatting(false);
+                        }
+                    }
+                }
+            ]
+        );
+    };
+
     const getPdfViewerHTML = () => {
         if (!fileInfo) return '';
 
@@ -489,15 +565,15 @@ const CourseViewerScreen = ({ route, navigation }) => {
     };
 
     const getWebViewHTML = (content, pageHighlights = []) => {
-        // Escape HTML entities
+        // Escape HTML entities mais préserver les sauts de ligne pour le CSS
         const escapeHtml = (text) => {
             return text
                 .replace(/&/g, '&amp;')
                 .replace(/</g, '&lt;')
                 .replace(/>/g, '&gt;')
                 .replace(/"/g, '&quot;')
-                .replace(/'/g, '&#039;')
-                .replace(/\n/g, '<br>');
+                .replace(/'/g, '&#039;');
+            // Ne pas remplacer \n par <br>, on utilise white-space: pre-wrap
         };
 
         let htmlContent = escapeHtml(content);
@@ -525,11 +601,16 @@ const CourseViewerScreen = ({ route, navigation }) => {
                     body {
                         font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
                         font-size: 16px;
-                        line-height: 1.8;
+                        line-height: 1.7;
                         color: #333;
                         padding: 20px;
                         margin: 0;
                         background-color: #fff;
+                    }
+                    #content {
+                        white-space: pre-wrap;
+                        word-wrap: break-word;
+                        overflow-wrap: break-word;
                     }
                     ::selection {
                         background-color: #b3d4fc;
@@ -646,6 +727,17 @@ const CourseViewerScreen = ({ route, navigation }) => {
                 </View>
                 <TouchableOpacity style={styles.editButton} onPress={startEditing}>
                     <Text style={styles.editButtonText}>E</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                    style={[styles.reformatButton, reformatting && styles.reformatButtonDisabled]}
+                    onPress={handleReformat}
+                    disabled={reformatting}
+                >
+                    {reformatting ? (
+                        <ActivityIndicator size="small" color="#1a1a2e" />
+                    ) : (
+                        <Text style={styles.reformatButtonText}>IA</Text>
+                    )}
                 </TouchableOpacity>
                 <TouchableOpacity style={styles.aiButton} onPress={() => {
                     setSelectionContext('');
@@ -1425,6 +1517,27 @@ const styles = StyleSheet.create({
     editButtonText: {
         color: '#1a1a2e',
         fontSize: 16,
+        fontWeight: '600',
+    },
+    // Reformat button styles
+    reformatButton: {
+        width: 40,
+        height: 40,
+        borderRadius: 20,
+        backgroundColor: '#e8f5e9',
+        justifyContent: 'center',
+        alignItems: 'center',
+        marginLeft: 10,
+        borderWidth: 1,
+        borderColor: '#a5d6a7',
+    },
+    reformatButtonDisabled: {
+        backgroundColor: '#f5f5f5',
+        borderColor: '#e0e0e0',
+    },
+    reformatButtonText: {
+        color: '#2e7d32',
+        fontSize: 12,
         fontWeight: '600',
     },
     // Edit modal styles

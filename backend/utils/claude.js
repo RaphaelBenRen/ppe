@@ -203,6 +203,58 @@ Retourne uniquement le texte extrait, sans commentaire ni introduction.`;
 };
 
 /**
+ * Reformate et améliore la mise en page d'un texte de cours
+ */
+const reformatContent = async (content, options = {}) => {
+    const { matiere = '', titre = '' } = options;
+
+    const prompt = `Tu es un assistant spécialisé dans la mise en forme de cours académiques.
+
+CONTEXTE :
+${titre ? `Titre du cours : ${titre}` : ''}
+${matiere ? `Matière : ${matiere}` : ''}
+
+TEXTE BRUT À REFORMATER :
+${content}
+
+TÂCHE :
+Reformate ce texte pour qu'il soit parfaitement lisible et bien structuré, tout en conservant TOUT le contenu original.
+
+RÈGLES DE FORMATAGE :
+- Identifie et mets en évidence les titres et sous-titres (utilise des lignes vides avant/après)
+- Organise le texte en paragraphes logiques
+- Crée des listes à puces (•) pour les énumérations
+- Corrige les sauts de ligne mal placés (fusionne les lignes qui appartiennent au même paragraphe)
+- Ajoute des espaces entre les sections pour améliorer la lisibilité
+- Conserve les formules et termes techniques exactement comme ils sont
+- Ne modifie PAS le contenu, seulement la mise en forme
+- Ne supprime aucune information
+- N'ajoute pas d'introduction, de conclusion ou de commentaire
+
+FORMAT DE SORTIE :
+Retourne UNIQUEMENT le texte reformaté, sans aucun commentaire, sans balises markdown (pas de # ou **), juste du texte bien structuré.`;
+
+    try {
+        const openai = getOpenAIClient();
+        const completion = await openai.chat.completions.create({
+            model: 'gpt-4o-mini',
+            messages: [{
+                role: 'user',
+                content: prompt
+            }],
+            temperature: 0.3,
+            max_tokens: 4000
+        });
+
+        return completion.choices[0].message.content;
+
+    } catch (error) {
+        console.error('Erreur reformatage:', error);
+        throw new Error('Erreur lors du reformatage du contenu');
+    }
+};
+
+/**
  * Répond à une question sur un passage de cours
  */
 const answerQuestion = async (question, context, options = {}) => {
@@ -254,5 +306,6 @@ module.exports = {
     generateQCM,
     generateFlashcards,
     answerQuestion,
-    extractTextFromImage
+    extractTextFromImage,
+    reformatContent
 };

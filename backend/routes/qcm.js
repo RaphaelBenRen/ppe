@@ -379,6 +379,18 @@ router.get('/:id/attempts/:attemptId', authMiddleware, async (req, res) => {
 // Route pour supprimer un QCM
 router.delete('/:id', authMiddleware, async (req, res) => {
     try {
+        // D'abord supprimer toutes les tentatives associées
+        const { error: attemptsError } = await supabase
+            .from('qcm_attempts')
+            .delete()
+            .eq('qcm_id', req.params.id)
+            .eq('user_id', req.user.userId);
+
+        if (attemptsError) {
+            console.error('Erreur suppression tentatives:', attemptsError);
+        }
+
+        // Ensuite supprimer le QCM
         const { error } = await supabase
             .from('qcms')
             .delete()

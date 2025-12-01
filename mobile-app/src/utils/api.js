@@ -3,7 +3,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 // Configuration de l'API
 // Mode dev: IP locale | Mode prod: URL Render
 const USE_LOCAL = true; // Passer à false pour utiliser Render
-const LOCAL_IP = '10.5.17.240';
+const LOCAL_IP = '10.5.23.174';
 const API_URL = USE_LOCAL
     ? `http://${LOCAL_IP}:5001/api`
     : 'https://ppe-z2u3.onrender.com/api';
@@ -226,6 +226,13 @@ export const coursesAPI = {
         return apiRequest(`/courses/${courseId}/content`, {
             method: 'PUT',
             body: JSON.stringify({ content }),
+        });
+    },
+
+    // Reformater le contenu d'un cours avec l'IA
+    reformatContent: async (courseId) => {
+        return apiRequest(`/courses/${courseId}/reformat`, {
+            method: 'POST',
         });
     },
 };

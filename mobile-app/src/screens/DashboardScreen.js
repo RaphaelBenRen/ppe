@@ -284,28 +284,19 @@ const DashboardScreen = ({ navigation }) => {
                         style={styles.quickAction}
                         onPress={handlePickDocument}
                     >
-                        <View style={[styles.quickActionIcon, { backgroundColor: '#f0f7f0' }]}>
-                            <Text style={[styles.quickActionIconText, { color: '#4a7c59' }]}>+</Text>
+                        <View style={styles.quickActionIcon}>
+                            <Text style={styles.quickActionIconText}>+</Text>
                         </View>
-                        <Text style={styles.quickActionText}>Importer</Text>
+                        <Text style={styles.quickActionText}>Importer un cours</Text>
                     </TouchableOpacity>
                     <TouchableOpacity
                         style={styles.quickAction}
                         onPress={() => navigation.navigate('OCR')}
                     >
-                        <View style={[styles.quickActionIcon, { backgroundColor: '#fff5e6' }]}>
-                            <Text style={styles.quickActionIconEmoji}>📷</Text>
+                        <View style={styles.quickActionIcon}>
+                            <Text style={styles.quickActionIconText}>⎗</Text>
                         </View>
-                        <Text style={styles.quickActionText}>Scanner</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                        style={styles.quickAction}
-                        onPress={() => navigation.navigate('QCM')}
-                    >
-                        <View style={[styles.quickActionIcon, { backgroundColor: '#f0f4f8' }]}>
-                            <Text style={[styles.quickActionIconText, { color: '#4a6fa5' }]}>Q</Text>
-                        </View>
-                        <Text style={styles.quickActionText}>QCM</Text>
+                        <Text style={styles.quickActionText}>Scanner (OCR)</Text>
                     </TouchableOpacity>
                 </View>
 
@@ -600,41 +591,43 @@ const styles = StyleSheet.create({
     },
     quickActions: {
         flexDirection: 'row',
-        padding: 20,
+        paddingHorizontal: 20,
         paddingTop: 10,
-        gap: 12,
+        paddingBottom: 5,
+        gap: 14,
     },
     quickAction: {
         flex: 1,
         backgroundColor: '#fff',
         borderRadius: 16,
-        padding: 16,
+        paddingVertical: 20,
+        paddingHorizontal: 16,
         alignItems: 'center',
         shadowColor: '#000',
         shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.04,
-        shadowRadius: 8,
-        elevation: 2,
+        shadowOpacity: 0.06,
+        shadowRadius: 10,
+        elevation: 3,
     },
     quickActionIcon: {
-        width: 48,
-        height: 48,
-        borderRadius: 24,
+        width: 52,
+        height: 52,
+        borderRadius: 26,
+        backgroundColor: '#f0f0f0',
         justifyContent: 'center',
         alignItems: 'center',
-        marginBottom: 8,
+        marginBottom: 12,
     },
     quickActionIconText: {
-        fontSize: 18,
-        fontWeight: '600',
-    },
-    quickActionIconEmoji: {
-        fontSize: 20,
-    },
-    quickActionText: {
-        fontSize: 12,
+        fontSize: 22,
         fontWeight: '600',
         color: '#1a1a2e',
+    },
+    quickActionText: {
+        fontSize: 13,
+        fontWeight: '600',
+        color: '#1a1a2e',
+        textAlign: 'center',
     },
     section: {
         padding: 20,

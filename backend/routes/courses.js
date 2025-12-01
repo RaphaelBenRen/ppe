@@ -6,7 +6,7 @@ const fs = require('fs').promises;
 const { supabase } = require('../config/database');
 const authMiddleware = require('../middleware/auth');
 const { parseDocument, cleanText } = require('../utils/documentParser');
-const { answerQuestion, extractTextFromImage } = require('../utils/claude');
+const { answerQuestion, extractTextFromImage, reformatContent } = require('../utils/claude');
 
 // Configuration de Multer pour l'upload
 const storage = multer.diskStorage({
@@ -564,6 +564,96 @@ router.put('/:id/content', authMiddleware, async (req, res) => {
         res.status(500).json({
             success: false,
             message: 'Erreur lors de la mise à jour du contenu: ' + error.message
+        });
+    }
+});
+
+// Route pour reformater le contenu d'un cours avec l'IA
+router.post('/:id/reformat', authMiddleware, async (req, res) => {
+    try {
+        // Récupérer les infos du cours
+        const { data: courses, error } = await supabase
+            .from('courses')
+            .select('titre, matiere, file_path, text_content, edited_content_path')
+            .eq('id', req.params.id)
+            .eq('uploaded_by', req.user.userId);
+
+        if (error) throw error;
+
+        if (!courses || courses.length === 0) {
+            return res.status(404).json({
+                success: false,
+                message: 'Cours non trouvé'
+            });
+        }
+
+        const course = courses[0];
+
+        // Récupérer le contenu actuel
+        let content;
+
+        if (course.edited_content_path) {
+            try {
+                content = await fs.readFile(course.edited_content_path, 'utf-8');
+            } catch (readError) {
+                content = null;
+            }
+        }
+
+        if (!content && course.text_content) {
+            content = course.text_content;
+        }
+
+        if (!content && course.file_path && course.file_path !== 'ocr-content') {
+            try {
+                content = await parseDocument(course.file_path);
+            } catch (parseError) {
+                return res.status(500).json({
+                    success: false,
+                    message: 'Impossible de lire le contenu du cours'
+                });
+            }
+        }
+
+        if (!content) {
+            return res.status(400).json({
+                success: false,
+                message: 'Aucun contenu à reformater'
+            });
+        }
+
+        console.log('🔄 Reformatage du cours:', course.titre);
+
+        // Appeler l'IA pour reformater
+        const reformattedContent = await reformatContent(content, {
+            titre: course.titre,
+            matiere: course.matiere
+        });
+
+        // Sauvegarder le contenu reformaté en BDD
+        const { error: updateError } = await supabase
+            .from('courses')
+            .update({ text_content: reformattedContent })
+            .eq('id', req.params.id)
+            .eq('uploaded_by', req.user.userId);
+
+        if (updateError) throw updateError;
+
+        console.log('✅ Contenu reformaté et sauvegardé');
+
+        res.json({
+            success: true,
+            message: 'Contenu reformaté avec succès',
+            data: {
+                content: reformattedContent
+            }
+        });
+
+    } catch (error) {
+        console.error('Erreur reformatage:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Erreur lors du reformatage: ' + error.message
         });
     }
 });
