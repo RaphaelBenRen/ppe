@@ -150,6 +150,17 @@ const QCMScreen = ({ navigation }) => {
     const renderQCM = ({ item }) => (
         <View style={styles.qcmCard}>
             <TouchableOpacity
+                style={styles.deleteButton}
+                onPress={() => handleDeleteQCM(item)}
+                disabled={deletingId === item.id}
+            >
+                {deletingId === item.id ? (
+                    <ActivityIndicator size="small" color="#999" />
+                ) : (
+                    <Text style={styles.deleteButtonText}>×</Text>
+                )}
+            </TouchableOpacity>
+            <TouchableOpacity
                 style={styles.qcmMain}
                 onPress={() => navigation.navigate('QCMDetail', { qcmId: item.id, qcmTitle: item.titre })}
                 activeOpacity={0.7}
@@ -163,7 +174,6 @@ const QCMScreen = ({ navigation }) => {
                         {item.nombre_questions} questions • {getDifficultyLabel(item.difficulte)}
                     </Text>
                 </View>
-                <Text style={styles.qcmArrow}>›</Text>
             </TouchableOpacity>
             <View style={styles.qcmActions}>
                 <TouchableOpacity
@@ -177,17 +187,6 @@ const QCMScreen = ({ navigation }) => {
                     onPress={() => navigation.navigate('QCMHistory', { qcmId: item.id, qcmTitle: item.titre })}
                 >
                     <Text style={styles.actionBtnText}>Historique</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                    style={[styles.actionBtn, styles.deleteBtn]}
-                    onPress={() => handleDeleteQCM(item)}
-                    disabled={deletingId === item.id}
-                >
-                    {deletingId === item.id ? (
-                        <ActivityIndicator size="small" color="#e53e3e" />
-                    ) : (
-                        <Text style={styles.deleteBtnText}>Suppr.</Text>
-                    )}
                 </TouchableOpacity>
             </View>
         </View>
@@ -479,6 +478,25 @@ const styles = StyleSheet.create({
         shadowOpacity: 0.04,
         shadowRadius: 6,
         elevation: 2,
+        position: 'relative',
+    },
+    deleteButton: {
+        position: 'absolute',
+        top: 8,
+        right: 8,
+        width: 24,
+        height: 24,
+        borderRadius: 12,
+        backgroundColor: '#f0f0f0',
+        justifyContent: 'center',
+        alignItems: 'center',
+        zIndex: 10,
+    },
+    deleteButtonText: {
+        fontSize: 18,
+        color: '#999',
+        fontWeight: '300',
+        lineHeight: 20,
     },
     qcmMain: {
         flexDirection: 'row',
@@ -512,11 +530,6 @@ const styles = StyleSheet.create({
         color: '#8a8a8a',
         marginTop: 3,
     },
-    qcmArrow: {
-        fontSize: 24,
-        color: '#c0c0c0',
-        fontWeight: '300',
-    },
     qcmActions: {
         flexDirection: 'row',
         borderTopWidth: 1,
@@ -535,15 +548,6 @@ const styles = StyleSheet.create({
         fontSize: 12,
         fontWeight: '600',
         color: '#1a1a2e',
-    },
-    deleteBtn: {
-        backgroundColor: '#fff5f5',
-        flex: 0.6,
-    },
-    deleteBtnText: {
-        fontSize: 12,
-        fontWeight: '600',
-        color: '#e53e3e',
     },
     emptyContainer: {
         flex: 1,

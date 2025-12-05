@@ -46,6 +46,17 @@ const FlashcardsScreen = ({ navigation }) => {
     const renderFlashcardSet = ({ item }) => (
         <View style={styles.flashcardCard}>
             <TouchableOpacity
+                style={styles.deleteButton}
+                onPress={() => handleDeleteFlashcard(item)}
+                disabled={deletingId === item.id}
+            >
+                {deletingId === item.id ? (
+                    <ActivityIndicator size="small" color="#999" />
+                ) : (
+                    <Text style={styles.deleteButtonText}>×</Text>
+                )}
+            </TouchableOpacity>
+            <TouchableOpacity
                 style={styles.flashcardMain}
                 onPress={() => navigation.navigate('FlashcardDetail', { flashcardId: item.id, flashcardTitle: item.titre })}
                 activeOpacity={0.7}
@@ -59,7 +70,6 @@ const FlashcardsScreen = ({ navigation }) => {
                         {item.nombre_flashcards} cartes • {new Date(item.created_at).toLocaleDateString()}
                     </Text>
                 </View>
-                <Text style={styles.flashcardArrow}>›</Text>
             </TouchableOpacity>
             <View style={styles.flashcardActions}>
                 <TouchableOpacity
@@ -67,17 +77,6 @@ const FlashcardsScreen = ({ navigation }) => {
                     onPress={() => navigation.navigate('FlashcardDetail', { flashcardId: item.id, flashcardTitle: item.titre })}
                 >
                     <Text style={styles.actionBtnText}>Réviser</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                    style={[styles.actionBtn, styles.deleteBtn]}
-                    onPress={() => handleDeleteFlashcard(item)}
-                    disabled={deletingId === item.id}
-                >
-                    {deletingId === item.id ? (
-                        <ActivityIndicator size="small" color="#e53e3e" />
-                    ) : (
-                        <Text style={styles.deleteBtnText}>Supprimer</Text>
-                    )}
                 </TouchableOpacity>
             </View>
         </View>
@@ -156,6 +155,25 @@ const styles = StyleSheet.create({
         shadowOpacity: 0.04,
         shadowRadius: 6,
         elevation: 2,
+        position: 'relative',
+    },
+    deleteButton: {
+        position: 'absolute',
+        top: 8,
+        right: 8,
+        width: 24,
+        height: 24,
+        borderRadius: 12,
+        backgroundColor: '#f0f0f0',
+        justifyContent: 'center',
+        alignItems: 'center',
+        zIndex: 10,
+    },
+    deleteButtonText: {
+        fontSize: 18,
+        color: '#999',
+        fontWeight: '300',
+        lineHeight: 20,
     },
     flashcardMain: {
         flexDirection: 'row',
@@ -189,11 +207,6 @@ const styles = StyleSheet.create({
         color: '#8a8a8a',
         marginTop: 3,
     },
-    flashcardArrow: {
-        fontSize: 24,
-        color: '#c0c0c0',
-        fontWeight: '300',
-    },
     flashcardActions: {
         flexDirection: 'row',
         borderTopWidth: 1,
@@ -212,14 +225,6 @@ const styles = StyleSheet.create({
         fontSize: 12,
         fontWeight: '600',
         color: '#1a1a2e',
-    },
-    deleteBtn: {
-        backgroundColor: '#fff5f5',
-    },
-    deleteBtnText: {
-        fontSize: 12,
-        fontWeight: '600',
-        color: '#e53e3e',
     },
     emptyContainer: {
         flex: 1,

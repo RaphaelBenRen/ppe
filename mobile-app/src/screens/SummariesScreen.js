@@ -74,15 +74,21 @@ const SummariesScreen = ({ navigation }) => {
     };
 
     const renderSummary = ({ item }) => (
-        <TouchableOpacity
-            style={styles.summaryCard}
-            onPress={() => navigation.navigate('SummaryViewer', {
-                summaryId: item.id,
-                summaryTitre: item.titre,
-            })}
-            activeOpacity={0.7}
-        >
-            <View style={styles.summaryMain}>
+        <View style={styles.summaryCard}>
+            <TouchableOpacity
+                style={styles.deleteButton}
+                onPress={() => handleDeleteSummary(item.id, item.titre)}
+            >
+                <Text style={styles.deleteButtonText}>×</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+                style={styles.summaryMain}
+                onPress={() => navigation.navigate('SummaryViewer', {
+                    summaryId: item.id,
+                    summaryTitre: item.titre,
+                })}
+                activeOpacity={0.7}
+            >
                 <View style={styles.summaryIcon}>
                     <Text style={styles.summaryIconText}>📝</Text>
                 </View>
@@ -97,17 +103,8 @@ const SummariesScreen = ({ navigation }) => {
                         </Text>
                     )}
                 </View>
-                <Text style={styles.summaryArrow}>›</Text>
-            </View>
-            <View style={styles.summaryActions}>
-                <TouchableOpacity
-                    style={[styles.actionBtn, styles.deleteBtn]}
-                    onPress={() => handleDeleteSummary(item.id, item.titre)}
-                >
-                    <Text style={styles.deleteBtnText}>Supprimer</Text>
-                </TouchableOpacity>
-            </View>
-        </TouchableOpacity>
+            </TouchableOpacity>
+        </View>
     );
 
     if (loading) {
@@ -192,6 +189,25 @@ const styles = StyleSheet.create({
         shadowOpacity: 0.04,
         shadowRadius: 6,
         elevation: 2,
+        position: 'relative',
+    },
+    deleteButton: {
+        position: 'absolute',
+        top: 8,
+        right: 8,
+        width: 24,
+        height: 24,
+        borderRadius: 12,
+        backgroundColor: '#f0f0f0',
+        justifyContent: 'center',
+        alignItems: 'center',
+        zIndex: 10,
+    },
+    deleteButtonText: {
+        fontSize: 18,
+        color: '#999',
+        fontWeight: '300',
+        lineHeight: 20,
     },
     summaryMain: {
         flexDirection: 'row',
@@ -228,32 +244,6 @@ const styles = StyleSheet.create({
         color: '#666',
         marginTop: 2,
         fontStyle: 'italic',
-    },
-    summaryArrow: {
-        fontSize: 24,
-        color: '#c0c0c0',
-        fontWeight: '300',
-    },
-    summaryActions: {
-        flexDirection: 'row',
-        borderTopWidth: 1,
-        borderTopColor: '#f0f0f0',
-        padding: 10,
-        justifyContent: 'flex-end',
-    },
-    actionBtn: {
-        paddingVertical: 8,
-        paddingHorizontal: 16,
-        borderRadius: 8,
-        backgroundColor: '#f5f5f5',
-    },
-    deleteBtn: {
-        backgroundColor: '#fff5f5',
-    },
-    deleteBtnText: {
-        fontSize: 12,
-        fontWeight: '600',
-        color: '#e53e3e',
     },
     emptyState: {
         flex: 1,
