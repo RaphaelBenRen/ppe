@@ -302,10 +302,155 @@ Réponds directement sans introduction.`;
     }
 };
 
+/**
+ * Parse un QCM existant (annales, exercices) depuis du texte brut
+ */
+const parseQCM = async (textContent, options = {}) => {
+    const { titre = '', matiere = '' } = options;
+
+    const prompt = `Tu es un assistant expert dans l'extraction et le parsing de QCM depuis des documents académiques (annales, exercices, etc.).
+
+TEXTE À ANALYSER :
+${textContent}
+
+TÂCHE :
+Extrais TOUTES les questions à choix multiples présentes dans ce texte et structure-les au format JSON.
+
+RÈGLES D'EXTRACTION :
+- Identifie chaque question et ses options de réponse (A, B, C, D ou 1, 2, 3, 4 ou similaire)
+- Si les bonnes réponses sont indiquées dans le document (corrigé), récupère-les
+- Si les bonnes réponses NE SONT PAS indiquées dans le document, TU DOIS ANALYSER LA QUESTION ET DÉTERMINER LA BONNE RÉPONSE toi-même en utilisant tes connaissances
+- IMPORTANT : correct_answer ne doit JAMAIS être null. Tu dois TOUJOURS fournir une réponse correcte (A, B, C ou D)
+- Si tu détermines la réponse toi-même, fournis une explication claire de pourquoi c'est la bonne réponse
+- Numérote les questions dans l'ordre où elles apparaissent
+- Ignore les textes qui ne sont pas des questions QCM
+
+FORMAT DE RÉPONSE (JSON strict) :
+{
+  "titre_detecte": "Titre du QCM si détecté dans le texte, sinon null",
+  "matiere_detectee": "Matière si détectée, sinon null",
+  "answers_from_document": true si les réponses étaient dans le document, false si tu les as déterminées,
+  "qcm": [
+    {
+      "question": "Texte complet de la question",
+      "options": {
+        "A": "Option A",
+        "B": "Option B",
+        "C": "Option C",
+        "D": "Option D"
+      },
+      "correct_answer": "A",
+      "explanation": "Explication de pourquoi c'est la bonne réponse"
+    }
+  ]
+}
+
+IMPORTANT :
+- Réponds UNIQUEMENT avec le JSON valide
+- correct_answer doit TOUJOURS contenir une lettre (A, B, C ou D), JAMAIS null
+- Si le texte ne contient pas de QCM, retourne {"qcm": [], "error": "Aucun QCM détecté dans le texte"}`;
+
+    try {
+        const openai = getOpenAIClient();
+        const completion = await openai.chat.completions.create({
+            model: 'gpt-4o-mini',
+            messages: [{
+                role: 'user',
+                content: prompt
+            }],
+            temperature: 0.3,
+            response_format: { type: "json_object" }
+        });
+
+        const responseText = completion.choices[0].message.content;
+        const parsedData = JSON.parse(responseText);
+
+        if (parsedData.error) {
+            throw new Error(parsedData.error);
+        }
+
+        // Normaliser le format des questions
+        const questions = parsedData.qcm.map((q, index) => ({
+            question: q.question,
+            options: q.options,
+            correct_answer: q.correct_answer,
+            explanation: q.explanation || null,
+            difficulty: 'moyen',
+            topic: matiere || parsedData.matiere_detectee || 'Général'
+        }));
+
+        return {
+            titre: titre || parsedData.titre_detecte || 'QCM importé',
+            matiere: matiere || parsedData.matiere_detectee || 'Autre',
+            answers_from_document: parsedData.answers_from_document || false,
+            questions
+        };
+
+    } catch (error) {
+        console.error('Erreur parsing QCM:', error);
+        throw new Error('Erreur lors de l\'extraction du QCM: ' + error.message);
+    }
+};
+
+/**
+ * Résume un cours en gardant uniquement les notions essentielles
+ */
+const summarizeCourse = async (courseContent, options = {}) => {
+    const { titre = '', matiere = '' } = options;
+
+    const prompt = `Tu es un assistant pédagogique expert en synthèse de cours pour étudiants en école d'ingénieurs.
+
+COURS À RÉSUMER :
+${courseContent}
+
+${titre ? `Titre du cours : ${titre}` : ''}
+${matiere ? `Matière : ${matiere}` : ''}
+
+OBJECTIF :
+Crée un résumé TRÈS CONCIS du cours qui ne garde que les notions ESSENTIELLES à retenir.
+
+RÈGLES DE RÉSUMÉ :
+1. **Sois extrêmement synthétique** - Chaque phrase doit apporter une information cruciale
+2. **Identifie les concepts clés** - Définitions, formules, théorèmes, principes fondamentaux
+3. **Structure clairement** - Utilise des titres, sous-titres et listes à puces
+4. **Priorise** - Garde uniquement ce qui serait dans une fiche de révision d'examen
+5. **Formules importantes** - Conserve les formules mathématiques/scientifiques essentielles
+6. **Pas de blabla** - Évite les introductions, transitions et conclusions inutiles
+
+FORMAT ATTENDU :
+- Utilise des **titres en gras** pour les sections
+- Utilise des • pour les listes à puces
+- Mets en évidence les termes importants
+- Le résumé doit faire environ 20-30% de la taille originale maximum
+
+Génère le résumé maintenant :`;
+
+    try {
+        const openai = getOpenAIClient();
+        const completion = await openai.chat.completions.create({
+            model: 'gpt-4o-mini',
+            messages: [{
+                role: 'user',
+                content: prompt
+            }],
+            temperature: 0.3,
+            max_tokens: 2000,
+        });
+
+        return completion.choices[0].message.content;
+
+    } catch (error) {
+        console.error('Erreur résumé cours:', error);
+        throw new Error('Erreur lors de la génération du résumé: ' + error.message);
+    }
+};
+
 module.exports = {
     generateQCM,
     generateFlashcards,
     answerQuestion,
     extractTextFromImage,
-    reformatContent
+    reformatContent,
+    parseQCM,
+    summarizeCourse
 };

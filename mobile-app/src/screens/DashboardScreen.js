@@ -10,6 +10,7 @@ import {
     FlatList,
     Modal,
     RefreshControl,
+    TextInput,
 } from 'react-native';
 import * as DocumentPicker from 'expo-document-picker';
 import { useAuth } from '../context/AuthContext';
@@ -31,6 +32,13 @@ const DashboardScreen = ({ navigation }) => {
     const [uploadData, setUploadData] = useState({
         file: null,
         titre: '',
+        matiere: 'Informatique',
+        annee_cible: 'Ing3',
+    });
+    const [showTextImportModal, setShowTextImportModal] = useState(false);
+    const [textImportData, setTextImportData] = useState({
+        titre: '',
+        content: '',
         matiere: 'Informatique',
         annee_cible: 'Ing3',
     });
@@ -101,6 +109,42 @@ const DashboardScreen = ({ navigation }) => {
         } finally {
             setUploading(false);
             setUploadData({ file: null, titre: '', matiere: 'Informatique', annee_cible: 'Ing3' });
+        }
+    };
+
+    const submitTextImport = async () => {
+        if (!textImportData.titre.trim() || !textImportData.content.trim()) {
+            Alert.alert('Erreur', 'Veuillez remplir le titre et le contenu');
+            return;
+        }
+
+        if (textImportData.content.trim().length < 50) {
+            Alert.alert('Erreur', 'Le contenu doit contenir au moins 50 caractères');
+            return;
+        }
+
+        setShowTextImportModal(false);
+        setUploading(true);
+
+        try {
+            const response = await coursesAPI.importFromText({
+                titre: textImportData.titre,
+                content: textImportData.content,
+                matiere: textImportData.matiere,
+                annee_cible: textImportData.annee_cible,
+                type_document: 'cours',
+            });
+
+            if (response.success) {
+                Alert.alert('Succès', 'Cours importé avec succès !');
+                refreshCourses();
+            }
+        } catch (error) {
+            Alert.alert('Erreur', error.message || 'Erreur lors de l\'import');
+            console.error('Text import error:', error);
+        } finally {
+            setUploading(false);
+            setTextImportData({ titre: '', content: '', matiere: 'Informatique', annee_cible: 'Ing3' });
         }
     };
 
@@ -281,22 +325,31 @@ const DashboardScreen = ({ navigation }) => {
                 {/* Quick Actions */}
                 <View style={styles.quickActions}>
                     <TouchableOpacity
-                        style={styles.quickAction}
+                        style={styles.quickActionSmall}
                         onPress={handlePickDocument}
                     >
-                        <View style={styles.quickActionIcon}>
-                            <Text style={styles.quickActionIconText}>+</Text>
+                        <View style={styles.quickActionIconSmall}>
+                            <Text style={styles.quickActionIconTextSmall}>📄</Text>
                         </View>
-                        <Text style={styles.quickActionText}>Importer un cours</Text>
+                        <Text style={styles.quickActionTextSmall}>Fichier</Text>
                     </TouchableOpacity>
                     <TouchableOpacity
-                        style={styles.quickAction}
+                        style={styles.quickActionSmall}
+                        onPress={() => setShowTextImportModal(true)}
+                    >
+                        <View style={styles.quickActionIconSmall}>
+                            <Text style={styles.quickActionIconTextSmall}>📋</Text>
+                        </View>
+                        <Text style={styles.quickActionTextSmall}>Coller</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                        style={styles.quickActionSmall}
                         onPress={() => navigation.navigate('OCR')}
                     >
-                        <View style={styles.quickActionIcon}>
-                            <Text style={styles.quickActionIconText}>⎗</Text>
+                        <View style={styles.quickActionIconSmall}>
+                            <Text style={styles.quickActionIconTextSmall}>📷</Text>
                         </View>
-                        <Text style={styles.quickActionText}>Scanner (OCR)</Text>
+                        <Text style={styles.quickActionTextSmall}>Scanner</Text>
                     </TouchableOpacity>
                 </View>
 
@@ -517,6 +570,102 @@ const DashboardScreen = ({ navigation }) => {
                     </View>
                 </View>
             </Modal>
+
+            {/* Text Import Modal */}
+            <Modal
+                visible={showTextImportModal}
+                transparent
+                animationType="fade"
+                onRequestClose={() => setShowTextImportModal(false)}
+            >
+                <View style={styles.modalOverlay}>
+                    <View style={[styles.modalContent, { maxHeight: '85%' }]}>
+                        <Text style={styles.modalTitle}>Importer un cours</Text>
+                        <Text style={styles.modalSubtitle}>Collez le contenu de votre cours</Text>
+
+                        <ScrollView showsVerticalScrollIndicator={false}>
+                            <View style={styles.inputGroup}>
+                                <Text style={styles.inputLabel}>Titre du cours</Text>
+                                <TextInput
+                                    style={styles.textInput}
+                                    placeholder="Ex: Chapitre 3 - Les algorithmes"
+                                    value={textImportData.titre}
+                                    onChangeText={(text) => setTextImportData({ ...textImportData, titre: text })}
+                                    placeholderTextColor="#999"
+                                />
+                            </View>
+
+                            <View style={styles.inputGroup}>
+                                <Text style={styles.inputLabel}>Contenu du cours</Text>
+                                <TextInput
+                                    style={[styles.textInput, styles.textArea]}
+                                    placeholder="Collez ici le contenu de votre cours..."
+                                    value={textImportData.content}
+                                    onChangeText={(text) => setTextImportData({ ...textImportData, content: text })}
+                                    multiline
+                                    numberOfLines={8}
+                                    textAlignVertical="top"
+                                    placeholderTextColor="#999"
+                                />
+                            </View>
+
+                            <View style={styles.inputGroup}>
+                                <Text style={styles.inputLabel}>Matière</Text>
+                                <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                                    <View style={styles.chipContainer}>
+                                        {matieres.map((m) => (
+                                            <TouchableOpacity
+                                                key={m}
+                                                style={[styles.chip, textImportData.matiere === m && styles.chipActive]}
+                                                onPress={() => setTextImportData({ ...textImportData, matiere: m })}
+                                            >
+                                                <Text style={[styles.chipText, textImportData.matiere === m && styles.chipTextActive]}>
+                                                    {m}
+                                                </Text>
+                                            </TouchableOpacity>
+                                        ))}
+                                    </View>
+                                </ScrollView>
+                            </View>
+
+                            <View style={styles.inputGroup}>
+                                <Text style={styles.inputLabel}>Année</Text>
+                                <View style={styles.chipContainer}>
+                                    {annees.map((a) => (
+                                        <TouchableOpacity
+                                            key={a}
+                                            style={[styles.chip, textImportData.annee_cible === a && styles.chipActive]}
+                                            onPress={() => setTextImportData({ ...textImportData, annee_cible: a })}
+                                        >
+                                            <Text style={[styles.chipText, textImportData.annee_cible === a && styles.chipTextActive]}>
+                                                {a}
+                                            </Text>
+                                        </TouchableOpacity>
+                                    ))}
+                                </View>
+                            </View>
+                        </ScrollView>
+
+                        <View style={styles.modalActions}>
+                            <TouchableOpacity
+                                style={styles.modalBtnSecondary}
+                                onPress={() => {
+                                    setShowTextImportModal(false);
+                                    setTextImportData({ titre: '', content: '', matiere: 'Informatique', annee_cible: 'Ing3' });
+                                }}
+                            >
+                                <Text style={styles.modalBtnSecondaryText}>Annuler</Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity
+                                style={styles.modalBtnPrimary}
+                                onPress={submitTextImport}
+                            >
+                                <Text style={styles.modalBtnPrimaryText}>Importer</Text>
+                            </TouchableOpacity>
+                        </View>
+                    </View>
+                </View>
+            </Modal>
         </View>
     );
 };
@@ -594,37 +743,35 @@ const styles = StyleSheet.create({
         paddingHorizontal: 20,
         paddingTop: 10,
         paddingBottom: 5,
-        gap: 14,
+        gap: 10,
     },
-    quickAction: {
+    quickActionSmall: {
         flex: 1,
         backgroundColor: '#fff',
-        borderRadius: 16,
-        paddingVertical: 20,
-        paddingHorizontal: 16,
+        borderRadius: 14,
+        paddingVertical: 14,
+        paddingHorizontal: 10,
         alignItems: 'center',
         shadowColor: '#000',
         shadowOffset: { width: 0, height: 2 },
         shadowOpacity: 0.06,
-        shadowRadius: 10,
-        elevation: 3,
+        shadowRadius: 8,
+        elevation: 2,
     },
-    quickActionIcon: {
-        width: 52,
-        height: 52,
-        borderRadius: 26,
+    quickActionIconSmall: {
+        width: 42,
+        height: 42,
+        borderRadius: 21,
         backgroundColor: '#f0f0f0',
         justifyContent: 'center',
         alignItems: 'center',
-        marginBottom: 12,
+        marginBottom: 8,
     },
-    quickActionIconText: {
-        fontSize: 22,
-        fontWeight: '600',
-        color: '#1a1a2e',
+    quickActionIconTextSmall: {
+        fontSize: 20,
     },
-    quickActionText: {
-        fontSize: 13,
+    quickActionTextSmall: {
+        fontSize: 12,
         fontWeight: '600',
         color: '#1a1a2e',
         textAlign: 'center',
@@ -807,6 +954,17 @@ const styles = StyleSheet.create({
     input: {
         fontSize: 15,
         color: '#1a1a2e',
+    },
+    textInput: {
+        backgroundColor: '#f5f5f5',
+        borderRadius: 10,
+        padding: 14,
+        fontSize: 15,
+        color: '#1a1a2e',
+    },
+    textArea: {
+        minHeight: 150,
+        maxHeight: 200,
     },
     chipContainer: {
         flexDirection: 'row',

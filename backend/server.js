@@ -9,6 +9,7 @@ const onboardingRoutes = require('./routes/onboarding');
 const coursesRoutes = require('./routes/courses');
 const qcmRoutes = require('./routes/qcm');
 const flashcardsRoutes = require('./routes/flashcards');
+const summariesRoutes = require('./routes/summaries');
 
 const app = express();
 const PORT = process.env.PORT || 5001;
@@ -24,6 +25,7 @@ app.use('/api/onboarding', onboardingRoutes);
 app.use('/api/courses', coursesRoutes);
 app.use('/api/qcm', qcmRoutes);
 app.use('/api/flashcards', flashcardsRoutes);
+app.use('/api/summaries', summariesRoutes);
 
 // Route de test
 app.get('/api/health', (req, res) => {

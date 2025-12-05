@@ -6,7 +6,7 @@ const fs = require('fs').promises;
 const { supabase } = require('../config/database');
 const authMiddleware = require('../middleware/auth');
 const { parseDocument, cleanText } = require('../utils/documentParser');
-const { answerQuestion, extractTextFromImage, reformatContent } = require('../utils/claude');
+const { answerQuestion, extractTextFromImage, reformatContent, summarizeCourse } = require('../utils/claude');
 
 // Configuration de Multer pour l'upload
 const storage = multer.diskStorage({
@@ -199,6 +199,63 @@ router.post('/ocr', authMiddleware, uploadImage.single('image'), async (req, res
         res.status(500).json({
             success: false,
             message: 'Erreur lors de l\'extraction du texte: ' + error.message
+        });
+    }
+});
+
+// Route pour importer un cours depuis du texte (copier-coller)
+router.post('/import-from-text', authMiddleware, async (req, res) => {
+    try {
+        const { titre, description, annee_cible, matiere, type_document, content } = req.body;
+
+        // Validation
+        if (!titre || !content || content.trim().length < 50) {
+            return res.status(400).json({
+                success: false,
+                message: 'Titre et contenu requis (minimum 50 caractères)'
+            });
+        }
+
+        console.log('📥 Import cours depuis texte - Longueur:', content.length);
+
+        // Sauvegarder dans la base de données
+        const { data: result, error } = await supabase
+            .from('courses')
+            .insert({
+                titre,
+                description: description || 'Cours importé par copier-coller',
+                annee_cible: annee_cible || 'Ing3',
+                matiere: matiere || 'Autre',
+                type_document: type_document || 'cours',
+                file_path: 'text-import',
+                file_type: 'txt',
+                text_content: content,
+                uploaded_by: req.user.userId
+            })
+            .select()
+            .single();
+
+        if (error) throw error;
+
+        console.log('✅ Cours importé depuis texte avec ID:', result.id);
+
+        res.json({
+            success: true,
+            message: 'Cours importé avec succès !',
+            data: {
+                id: result.id,
+                titre,
+                matiere: matiere || 'Autre',
+                annee_cible: annee_cible || 'Ing3',
+                type_document: type_document || 'cours'
+            }
+        });
+
+    } catch (error) {
+        console.error('❌ Erreur import cours texte:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Erreur lors de l\'import du cours: ' + error.message
         });
     }
 });
@@ -654,6 +711,87 @@ router.post('/:id/reformat', authMiddleware, async (req, res) => {
         res.status(500).json({
             success: false,
             message: 'Erreur lors du reformatage: ' + error.message
+        });
+    }
+});
+
+// Route pour résumer un cours (garder les notions essentielles)
+router.post('/:id/summarize', authMiddleware, async (req, res) => {
+    try {
+        // Récupérer les infos du cours
+        const { data: courses, error } = await supabase
+            .from('courses')
+            .select('titre, matiere, file_path, text_content, edited_content_path')
+            .eq('id', req.params.id)
+            .eq('uploaded_by', req.user.userId);
+
+        if (error) throw error;
+
+        if (!courses || courses.length === 0) {
+            return res.status(404).json({
+                success: false,
+                message: 'Cours non trouvé'
+            });
+        }
+
+        const course = courses[0];
+
+        // Récupérer le contenu actuel
+        let content;
+
+        if (course.edited_content_path) {
+            try {
+                content = await fs.readFile(course.edited_content_path, 'utf-8');
+            } catch (readError) {
+                content = null;
+            }
+        }
+
+        if (!content && course.text_content) {
+            content = course.text_content;
+        }
+
+        if (!content && course.file_path && course.file_path !== 'ocr-content' && course.file_path !== 'text-import') {
+            try {
+                content = await parseDocument(course.file_path);
+            } catch (parseError) {
+                return res.status(500).json({
+                    success: false,
+                    message: 'Impossible de lire le contenu du cours'
+                });
+            }
+        }
+
+        if (!content) {
+            return res.status(400).json({
+                success: false,
+                message: 'Aucun contenu à résumer'
+            });
+        }
+
+        console.log('📝 Résumé du cours:', course.titre);
+
+        // Appeler l'IA pour résumer
+        const summary = await summarizeCourse(content, {
+            titre: course.titre,
+            matiere: course.matiere
+        });
+
+        console.log('✅ Résumé généré');
+
+        res.json({
+            success: true,
+            message: 'Résumé généré avec succès',
+            data: {
+                summary
+            }
+        });
+
+    } catch (error) {
+        console.error('Erreur résumé:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Erreur lors de la génération du résumé: ' + error.message
         });
     }
 });

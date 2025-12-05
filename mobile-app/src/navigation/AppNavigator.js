@@ -23,6 +23,8 @@ import SettingsScreen from '../screens/SettingsScreen';
 import OCRScreen from '../screens/OCRScreen';
 import EditProfileScreen from '../screens/EditProfileScreen';
 import ChangePasswordScreen from '../screens/ChangePasswordScreen';
+import SummariesScreen from '../screens/SummariesScreen';
+import SummaryViewerScreen from '../screens/SummaryViewerScreen';
 
 const Stack = createStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -33,6 +35,7 @@ const TabIcon = ({ name, focused, color }) => {
         home: '⌂',
         qcm: '✓',
         flash: '↯',
+        summary: '📝',
     };
     return (
         <Text style={{
@@ -107,6 +110,16 @@ const MainTabs = () => {
                     ),
                 }}
             />
+            <Tab.Screen
+                name="Summaries"
+                component={SummariesScreen}
+                options={{
+                    tabBarLabel: 'Résumés',
+                    tabBarIcon: ({ focused, color }) => (
+                        <TabIcon name="summary" focused={focused} color={color} />
+                    ),
+                }}
+            />
         </Tab.Navigator>
     );
 };
@@ -159,6 +172,7 @@ const AppNavigator = () => {
                         <Stack.Screen name="OCR" component={OCRScreen} />
                         <Stack.Screen name="EditProfile" component={EditProfileScreen} />
                         <Stack.Screen name="ChangePassword" component={ChangePasswordScreen} />
+                        <Stack.Screen name="SummaryViewer" component={SummaryViewerScreen} />
                     </React.Fragment>
                 )}
             </Stack.Navigator>

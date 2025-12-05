@@ -16,7 +16,7 @@ import {
     TouchableWithoutFeedback,
 } from 'react-native';
 import { WebView } from 'react-native-webview';
-import { coursesAPI } from '../utils/api';
+import { coursesAPI, summariesAPI } from '../utils/api';
 import { useAuth } from '../context/AuthContext';
 
 const CHARS_PER_PAGE = 3000;
@@ -53,6 +53,9 @@ const CourseViewerScreen = ({ route, navigation }) => {
     const [originalFullContent, setOriginalFullContent] = useState('');
     const [saving, setSaving] = useState(false);
     const [reformatting, setReformatting] = useState(false);
+    const [summarizing, setSummarizing] = useState(false);
+    const [showSummaryModal, setShowSummaryModal] = useState(false);
+    const [summaryContent, setSummaryContent] = useState('');
     const webViewRef = useRef(null);
     const pdfWebViewRef = useRef(null);
     const { width } = useWindowDimensions();
@@ -438,6 +441,65 @@ const CourseViewerScreen = ({ route, navigation }) => {
         );
     };
 
+    // Fonction pour générer un résumé du cours
+    const handleSummarize = async () => {
+        if (!user?.has_ai_access) {
+            Alert.alert(
+                'Accès restreint',
+                'Pour résumer avec l\'IA, vous devez entrer un code d\'accès dans les paramètres.',
+                [
+                    { text: 'Annuler', style: 'cancel' },
+                    { text: 'Paramètres', onPress: () => navigation.navigate('Settings') }
+                ]
+            );
+            return;
+        }
+
+        setSummarizing(true);
+        try {
+            const response = await coursesAPI.summarizeCourse(courseId);
+            if (response.success && response.data?.summary) {
+                setSummaryContent(response.data.summary);
+                setShowSummaryModal(true);
+            }
+        } catch (error) {
+            Alert.alert('Erreur', error.message || 'Erreur lors de la génération du résumé');
+        } finally {
+            setSummarizing(false);
+        }
+    };
+
+    // Sauvegarder le résumé en base de données
+    const saveSummary = async () => {
+        try {
+            const response = await summariesAPI.createSummary({
+                course_id: courseId,
+                titre: `Résumé - ${courseData.titre}`,
+                matiere: courseData.matiere,
+                content: summaryContent,
+                original_course_titre: courseData.titre,
+            });
+            if (response.success) {
+                setShowSummaryModal(false);
+                Alert.alert(
+                    'Résumé sauvegardé',
+                    'Votre résumé a été enregistré. Vous pouvez le retrouver dans la section Résumés.',
+                    [
+                        { text: 'Fermer', style: 'cancel' },
+                        {
+                            text: 'Voir les résumés',
+                            onPress: () => {
+                                navigation.navigate('Main', { screen: 'Summaries' });
+                            }
+                        }
+                    ]
+                );
+            }
+        } catch (error) {
+            Alert.alert('Erreur', error.message || 'Erreur lors de la sauvegarde du résumé');
+        }
+    };
+
     const getPdfViewerHTML = () => {
         if (!fileInfo) return '';
 
@@ -737,6 +799,17 @@ const CourseViewerScreen = ({ route, navigation }) => {
                         <ActivityIndicator size="small" color="#1a1a2e" />
                     ) : (
                         <Text style={styles.reformatButtonText}>IA</Text>
+                    )}
+                </TouchableOpacity>
+                <TouchableOpacity
+                    style={[styles.summarizeButton, summarizing && styles.summarizeButtonDisabled]}
+                    onPress={handleSummarize}
+                    disabled={summarizing}
+                >
+                    {summarizing ? (
+                        <ActivityIndicator size="small" color="#fff" />
+                    ) : (
+                        <Text style={styles.summarizeButtonText}>📝</Text>
                     )}
                 </TouchableOpacity>
                 <TouchableOpacity style={styles.aiButton} onPress={() => {
@@ -1062,6 +1135,39 @@ const CourseViewerScreen = ({ route, navigation }) => {
                         </Text>
                     </View>
                 </KeyboardAvoidingView>
+            </Modal>
+
+            {/* Summary Modal */}
+            <Modal
+                visible={showSummaryModal}
+                animationType="slide"
+                onRequestClose={() => setShowSummaryModal(false)}
+            >
+                <View style={styles.summaryModalContainer}>
+                    <View style={styles.summaryModalHeader}>
+                        <Text style={styles.summaryModalTitle}>Résumé du cours</Text>
+                        <TouchableOpacity
+                            style={styles.summaryCloseButton}
+                            onPress={() => setShowSummaryModal(false)}
+                        >
+                            <Text style={styles.summaryCloseButtonText}>✕</Text>
+                        </TouchableOpacity>
+                    </View>
+                    <ScrollView
+                        style={styles.summaryScrollView}
+                        contentContainerStyle={styles.summaryScrollContent}
+                    >
+                        <Text style={styles.summaryText}>{summaryContent}</Text>
+                    </ScrollView>
+                    <View style={styles.summaryFooter}>
+                        <TouchableOpacity style={styles.saveSummaryButton} onPress={saveSummary}>
+                            <Text style={styles.saveSummaryButtonText}>Sauvegarder le résumé</Text>
+                        </TouchableOpacity>
+                        <Text style={styles.summaryFooterText}>
+                            Le résumé sera disponible dans la section Résumés
+                        </Text>
+                    </View>
+                </View>
             </Modal>
         </View>
     );
@@ -1539,6 +1645,88 @@ const styles = StyleSheet.create({
         color: '#2e7d32',
         fontSize: 12,
         fontWeight: '600',
+    },
+    summarizeButton: {
+        width: 40,
+        height: 40,
+        borderRadius: 20,
+        backgroundColor: '#1a1a2e',
+        justifyContent: 'center',
+        alignItems: 'center',
+        marginLeft: 8,
+    },
+    summarizeButtonDisabled: {
+        backgroundColor: '#9e9e9e',
+    },
+    summarizeButtonText: {
+        fontSize: 16,
+    },
+    // Summary modal styles
+    summaryModalContainer: {
+        flex: 1,
+        backgroundColor: '#f8f9fa',
+    },
+    summaryModalHeader: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        paddingTop: 55,
+        paddingBottom: 15,
+        paddingHorizontal: 20,
+        backgroundColor: '#fff',
+        borderBottomWidth: 1,
+        borderBottomColor: '#e0e0e0',
+    },
+    summaryModalTitle: {
+        fontSize: 18,
+        fontWeight: '700',
+        color: '#1a1a2e',
+    },
+    summaryCloseButton: {
+        width: 36,
+        height: 36,
+        borderRadius: 18,
+        backgroundColor: '#f0f0f0',
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    summaryCloseButtonText: {
+        fontSize: 18,
+        color: '#666',
+    },
+    summaryScrollView: {
+        flex: 1,
+    },
+    summaryScrollContent: {
+        padding: 20,
+    },
+    summaryText: {
+        fontSize: 15,
+        lineHeight: 24,
+        color: '#333',
+    },
+    summaryFooter: {
+        padding: 15,
+        backgroundColor: '#e8f5e9',
+        borderTopWidth: 1,
+        borderTopColor: '#c8e6c9',
+    },
+    saveSummaryButton: {
+        backgroundColor: '#1a1a2e',
+        paddingVertical: 14,
+        borderRadius: 10,
+        alignItems: 'center',
+        marginBottom: 10,
+    },
+    saveSummaryButtonText: {
+        color: '#fff',
+        fontSize: 16,
+        fontWeight: '600',
+    },
+    summaryFooterText: {
+        fontSize: 12,
+        color: '#2e7d32',
+        textAlign: 'center',
     },
     // Edit modal styles
     editModalContainer: {

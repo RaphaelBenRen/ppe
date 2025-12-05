@@ -3,7 +3,40 @@ const router = express.Router();
 const { supabase } = require('../config/database');
 const authMiddleware = require('../middleware/auth');
 const { parseDocument, cleanText, chunkText } = require('../utils/documentParser');
-const { generateQCM } = require('../utils/claude');
+const { generateQCM, parseQCM } = require('../utils/claude');
+const multer = require('multer');
+const path = require('path');
+const fs = require('fs').promises;
+
+// Configuration de Multer pour l'upload de PDF
+const storage = multer.diskStorage({
+    destination: async (req, file, cb) => {
+        const uploadDir = path.join(__dirname, '../../uploads/temp');
+        try {
+            await fs.mkdir(uploadDir, { recursive: true });
+            cb(null, uploadDir);
+        } catch (error) {
+            cb(error);
+        }
+    },
+    filename: (req, file, cb) => {
+        const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+        cb(null, uniqueSuffix + path.extname(file.originalname));
+    }
+});
+
+const upload = multer({
+    storage,
+    fileFilter: (req, file, cb) => {
+        const allowedTypes = ['application/pdf', 'text/plain'];
+        if (allowedTypes.includes(file.mimetype)) {
+            cb(null, true);
+        } else {
+            cb(new Error('Type de fichier non supporté. Utilisez PDF ou TXT.'));
+        }
+    },
+    limits: { fileSize: 10 * 1024 * 1024 } // 10MB max
+});
 
 // Route pour générer un QCM à partir d'un cours uploadé
 router.post('/generate-from-course/:courseId', authMiddleware, async (req, res) => {
@@ -37,8 +70,23 @@ router.post('/generate-from-course/:courseId', authMiddleware, async (req, res) 
 
         const course = courses[0];
 
-        // Parser le document
-        let textContent = await parseDocument(course.file_path);
+        // Récupérer le contenu du cours
+        let textContent;
+
+        // Si le cours a du contenu texte stocké directement (copier-coller ou OCR)
+        if (course.text_content) {
+            textContent = course.text_content;
+        }
+        // Sinon parser le fichier
+        else if (course.file_path && course.file_path !== 'text-import' && course.file_path !== 'ocr-content') {
+            textContent = await parseDocument(course.file_path);
+        } else {
+            return res.status(400).json({
+                success: false,
+                message: 'Aucun contenu disponible pour ce cours'
+            });
+        }
+
         textContent = cleanText(textContent);
 
         // Si le texte est trop long, prendre un chunk
@@ -373,6 +421,149 @@ router.get('/:id/attempts/:attemptId', authMiddleware, async (req, res) => {
             success: false,
             message: 'Erreur lors de la récupération de la tentative'
         });
+    }
+});
+
+// Route pour importer un QCM depuis du texte (copier-coller)
+router.post('/import-from-text', authMiddleware, async (req, res) => {
+    try {
+        const { textContent, titre, matiere, difficulte } = req.body;
+
+        if (!textContent || textContent.trim().length < 50) {
+            return res.status(400).json({
+                success: false,
+                message: 'Texte trop court. Collez le contenu du QCM à importer.'
+            });
+        }
+
+        console.log('📥 Import QCM depuis texte - Longueur:', textContent.length);
+
+        // Parser le QCM avec l'IA
+        const parsedQCM = await parseQCM(textContent, { titre, matiere });
+
+        if (!parsedQCM.questions || parsedQCM.questions.length === 0) {
+            return res.status(400).json({
+                success: false,
+                message: 'Aucune question QCM détectée dans le texte fourni.'
+            });
+        }
+
+        // Sauvegarder le QCM
+        const { data: result, error: insertError } = await supabase
+            .from('qcms')
+            .insert({
+                user_id: req.user.userId,
+                titre: titre || parsedQCM.titre,
+                matiere: matiere || parsedQCM.matiere,
+                annee_cible: 'Ing3',
+                difficulte: difficulte || 'moyen',
+                nombre_questions: parsedQCM.questions.length,
+                questions_data: parsedQCM.questions
+            })
+            .select()
+            .single();
+
+        if (insertError) throw insertError;
+
+        console.log('✅ QCM importé:', result.id, '-', parsedQCM.questions.length, 'questions');
+
+        res.json({
+            success: true,
+            message: `QCM importé avec succès ! ${parsedQCM.questions.length} questions extraites.${!parsedQCM.answers_from_document ? ' Les réponses ont été déterminées par l\'IA.' : ''}`,
+            data: {
+                qcmId: result.id,
+                titre: result.titre,
+                nombreQuestions: parsedQCM.questions.length,
+                answersFromDocument: parsedQCM.answers_from_document
+            }
+        });
+
+    } catch (error) {
+        console.error('Erreur import QCM texte:', error);
+        res.status(500).json({
+            success: false,
+            message: error.message || 'Erreur lors de l\'import du QCM'
+        });
+    }
+});
+
+// Route pour importer un QCM depuis un fichier PDF
+router.post('/import-from-file', authMiddleware, upload.single('file'), async (req, res) => {
+    let filePath = null;
+
+    try {
+        if (!req.file) {
+            return res.status(400).json({
+                success: false,
+                message: 'Aucun fichier fourni'
+            });
+        }
+
+        filePath = req.file.path;
+        const { titre, matiere, difficulte } = req.body;
+
+        console.log('📥 Import QCM depuis fichier:', req.file.originalname);
+
+        // Parser le document
+        let textContent = await parseDocument(filePath);
+        textContent = cleanText(textContent);
+
+        if (textContent.length < 50) {
+            throw new Error('Le fichier ne contient pas assez de texte.');
+        }
+
+        // Parser le QCM avec l'IA
+        const parsedQCM = await parseQCM(textContent, { titre, matiere });
+
+        if (!parsedQCM.questions || parsedQCM.questions.length === 0) {
+            throw new Error('Aucune question QCM détectée dans le fichier.');
+        }
+
+        // Sauvegarder le QCM
+        const { data: result, error: insertError } = await supabase
+            .from('qcms')
+            .insert({
+                user_id: req.user.userId,
+                titre: titre || parsedQCM.titre || req.file.originalname.replace(/\.[^/.]+$/, ''),
+                matiere: matiere || parsedQCM.matiere,
+                annee_cible: 'Ing3',
+                difficulte: difficulte || 'moyen',
+                nombre_questions: parsedQCM.questions.length,
+                questions_data: parsedQCM.questions
+            })
+            .select()
+            .single();
+
+        if (insertError) throw insertError;
+
+        console.log('✅ QCM importé depuis fichier:', result.id, '-', parsedQCM.questions.length, 'questions');
+
+        res.json({
+            success: true,
+            message: `QCM importé avec succès ! ${parsedQCM.questions.length} questions extraites.${!parsedQCM.answers_from_document ? ' Les réponses ont été déterminées par l\'IA.' : ''}`,
+            data: {
+                qcmId: result.id,
+                titre: result.titre,
+                nombreQuestions: parsedQCM.questions.length,
+                answersFromDocument: parsedQCM.answers_from_document
+            }
+        });
+
+    } catch (error) {
+        console.error('Erreur import QCM fichier:', error);
+        res.status(500).json({
+            success: false,
+            message: error.message || 'Erreur lors de l\'import du QCM'
+        });
+    } finally {
+        // Nettoyer le fichier temporaire
+        if (filePath) {
+            try {
+                await fs.unlink(filePath);
+            } catch (e) {
+                console.log('Erreur nettoyage fichier temp:', e.message);
+            }
+        }
     }
 });
 

@@ -3,7 +3,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 // Configuration de l'API
 // Mode dev: IP locale | Mode prod: URL Render
 const USE_LOCAL = true; // Passer à false pour utiliser Render
-const LOCAL_IP = '10.5.23.174';
+const LOCAL_IP = '192.168.1.78';
 const API_URL = USE_LOCAL
     ? `http://${LOCAL_IP}:5001/api`
     : 'https://ppe-z2u3.onrender.com/api';
@@ -235,6 +235,21 @@ export const coursesAPI = {
             method: 'POST',
         });
     },
+
+    // Importer un cours depuis du texte (copier-coller)
+    importFromText: async (courseData) => {
+        return apiRequest('/courses/import-from-text', {
+            method: 'POST',
+            body: JSON.stringify(courseData),
+        });
+    },
+
+    // Résumer un cours (garder les notions essentielles)
+    summarizeCourse: async (courseId) => {
+        return apiRequest(`/courses/${courseId}/summarize`, {
+            method: 'POST',
+        });
+    },
 };
 
 // API de QCM
@@ -274,6 +289,50 @@ export const qcmAPI = {
             method: 'DELETE',
         });
     },
+
+    // Importer un QCM depuis du texte (copier-coller)
+    importFromText: async (textContent, options = {}) => {
+        return apiRequest('/qcm/import-from-text', {
+            method: 'POST',
+            body: JSON.stringify({
+                textContent,
+                titre: options.titre,
+                matiere: options.matiere,
+                difficulte: options.difficulte,
+            }),
+        });
+    },
+
+    // Importer un QCM depuis un fichier PDF
+    importFromFile: async (file, options = {}) => {
+        const token = await AsyncStorage.getItem('token');
+
+        const formData = new FormData();
+        formData.append('file', {
+            uri: file.uri,
+            name: file.name,
+            type: file.mimeType || 'application/pdf',
+        });
+        if (options.titre) formData.append('titre', options.titre);
+        if (options.matiere) formData.append('matiere', options.matiere);
+        if (options.difficulte) formData.append('difficulte', options.difficulte);
+
+        const response = await fetch(`${API_URL}/qcm/import-from-file`, {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${token}`,
+            },
+            body: formData,
+        });
+
+        const data = await response.json();
+
+        if (!response.ok) {
+            throw new Error(data.message || 'Erreur lors de l\'import du QCM');
+        }
+
+        return data;
+    },
 };
 
 // API de Flashcards
@@ -295,6 +354,50 @@ export const flashcardsAPI = {
 
     deleteFlashcardSet: async (id) => {
         return apiRequest(`/flashcards/${id}`, {
+            method: 'DELETE',
+        });
+    },
+};
+
+// API de Résumés
+export const summariesAPI = {
+    getMySummaries: async () => {
+        return apiRequest('/summaries/my-summaries');
+    },
+
+    getSummary: async (id) => {
+        return apiRequest(`/summaries/${id}`);
+    },
+
+    createSummary: async (data) => {
+        return apiRequest('/summaries/create', {
+            method: 'POST',
+            body: JSON.stringify(data),
+        });
+    },
+
+    updateContent: async (id, content) => {
+        return apiRequest(`/summaries/${id}/content`, {
+            method: 'PUT',
+            body: JSON.stringify({ content }),
+        });
+    },
+
+    reformatSummary: async (id) => {
+        return apiRequest(`/summaries/${id}/reformat`, {
+            method: 'POST',
+        });
+    },
+
+    askQuestion: async (id, data) => {
+        return apiRequest(`/summaries/${id}/ask`, {
+            method: 'POST',
+            body: JSON.stringify(data),
+        });
+    },
+
+    deleteSummary: async (id) => {
+        return apiRequest(`/summaries/${id}`, {
             method: 'DELETE',
         });
     },

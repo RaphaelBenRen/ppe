@@ -36,8 +36,23 @@ router.post('/generate-from-course/:courseId', authMiddleware, async (req, res) 
 
         const course = courses[0];
 
-        // Parser le document
-        let textContent = await parseDocument(course.file_path);
+        // Récupérer le contenu du cours
+        let textContent;
+
+        // Si le cours a du contenu texte stocké directement (copier-coller ou OCR)
+        if (course.text_content) {
+            textContent = course.text_content;
+        }
+        // Sinon parser le fichier
+        else if (course.file_path && course.file_path !== 'text-import' && course.file_path !== 'ocr-content') {
+            textContent = await parseDocument(course.file_path);
+        } else {
+            return res.status(400).json({
+                success: false,
+                message: 'Aucun contenu disponible pour ce cours'
+            });
+        }
+
         textContent = cleanText(textContent);
 
         // Si le texte est trop long, prendre un chunk
