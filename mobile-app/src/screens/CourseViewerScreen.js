@@ -16,7 +16,7 @@ import {
     TouchableWithoutFeedback,
 } from 'react-native';
 import { WebView } from 'react-native-webview';
-import { coursesAPI, summariesAPI } from '../utils/api';
+import { coursesAPI } from '../utils/api';
 import { useAuth } from '../context/AuthContext';
 
 const CHARS_PER_PAGE = 3000;
@@ -53,9 +53,10 @@ const CourseViewerScreen = ({ route, navigation }) => {
     const [originalFullContent, setOriginalFullContent] = useState('');
     const [saving, setSaving] = useState(false);
     const [reformatting, setReformatting] = useState(false);
-    const [summarizing, setSummarizing] = useState(false);
-    const [showSummaryModal, setShowSummaryModal] = useState(false);
-    const [summaryContent, setSummaryContent] = useState('');
+    const [pdfScrollPosition, setPdfScrollPosition] = useState(0);
+    const [pdfScrollPercent, setPdfScrollPercent] = useState(0); // Pourcentage de scroll dans le PDF (0-1)
+    const [pdfCurrentPage, setPdfCurrentPage] = useState(0); // 0 = jamais visité le PDF
+    const [pdfTotalPages, setPdfTotalPages] = useState(0);
     const webViewRef = useRef(null);
     const pdfWebViewRef = useRef(null);
     const { width } = useWindowDimensions();
@@ -322,21 +323,57 @@ const CourseViewerScreen = ({ route, navigation }) => {
     };
 
     const goToNextPage = () => {
-        if (currentPage < pages.length - 1) {
-            setCurrentPage(currentPage + 1);
-        }
+        setCurrentPage(prev => {
+            if (prev < pages.length - 1) {
+                return prev + 1;
+            }
+            return prev;
+        });
     };
 
     const goToPreviousPage = () => {
-        if (currentPage > 0) {
-            setCurrentPage(currentPage - 1);
+        setCurrentPage(prev => {
+            if (prev > 0) {
+                return prev - 1;
+            }
+            return prev;
+        });
+    };
+
+    const switchToTextMode = () => {
+        if (viewMode === 'original') {
+            // Sauvegarder la position de scroll et la page courante avant de passer en mode texte
+            if (pdfWebViewRef.current) {
+                pdfWebViewRef.current.injectJavaScript(`
+                    window.ReactNativeWebView.postMessage(JSON.stringify({
+                        type: 'saveScrollPosition',
+                        scrollY: window.scrollY,
+                        currentPage: getCurrentPage(),
+                        scrollPercent: getScrollPercent()
+                    }));
+                    true;
+                `);
+            }
+        }
+        setViewMode('text');
+    };
+
+    const switchToPdfMode = () => {
+        if (viewMode === 'text') {
+            // Passer en mode PDF et restaurer la position
+            setViewMode('original');
+            // Restaurer la position après un petit délai pour que le WebView soit visible
+            setTimeout(() => {
+                if (pdfWebViewRef.current && pdfScrollPosition > 0) {
+                    pdfWebViewRef.current.injectJavaScript(`
+                        window.scrollTo(0, ${pdfScrollPosition});
+                        true;
+                    `);
+                }
+            }, 100);
         }
     };
 
-    const toggleViewMode = () => {
-        // Plus besoin de recharger le PDF - il reste en mémoire
-        setViewMode(viewMode === 'text' ? 'original' : 'text');
-    };
 
     // Fonctions d'édition
     const startEditing = () => {
@@ -344,7 +381,7 @@ const CourseViewerScreen = ({ route, navigation }) => {
         setIsEditing(true);
         // Passer en mode texte si on est en mode PDF
         if (viewMode === 'original') {
-            setViewMode('text');
+            switchToTextMode();
         }
     };
 
@@ -418,7 +455,7 @@ const CourseViewerScreen = ({ route, navigation }) => {
                         setReformatting(true);
                         // Passer en mode texte pour voir le résultat
                         if (viewMode === 'original') {
-                            setViewMode('text');
+                            switchToTextMode();
                         }
                         try {
                             const response = await coursesAPI.reformatContent(courseId);
@@ -439,65 +476,6 @@ const CourseViewerScreen = ({ route, navigation }) => {
                 }
             ]
         );
-    };
-
-    // Fonction pour générer un résumé du cours
-    const handleSummarize = async () => {
-        if (!user?.has_ai_access) {
-            Alert.alert(
-                'Accès restreint',
-                'Pour résumer avec l\'IA, vous devez entrer un code d\'accès dans les paramètres.',
-                [
-                    { text: 'Annuler', style: 'cancel' },
-                    { text: 'Paramètres', onPress: () => navigation.navigate('Settings') }
-                ]
-            );
-            return;
-        }
-
-        setSummarizing(true);
-        try {
-            const response = await coursesAPI.summarizeCourse(courseId);
-            if (response.success && response.data?.summary) {
-                setSummaryContent(response.data.summary);
-                setShowSummaryModal(true);
-            }
-        } catch (error) {
-            Alert.alert('Erreur', error.message || 'Erreur lors de la génération du résumé');
-        } finally {
-            setSummarizing(false);
-        }
-    };
-
-    // Sauvegarder le résumé en base de données
-    const saveSummary = async () => {
-        try {
-            const response = await summariesAPI.createSummary({
-                course_id: courseId,
-                titre: `Résumé - ${courseData.titre}`,
-                matiere: courseData.matiere,
-                content: summaryContent,
-                original_course_titre: courseData.titre,
-            });
-            if (response.success) {
-                setShowSummaryModal(false);
-                Alert.alert(
-                    'Résumé sauvegardé',
-                    'Votre résumé a été enregistré. Vous pouvez le retrouver dans la section Résumés.',
-                    [
-                        { text: 'Fermer', style: 'cancel' },
-                        {
-                            text: 'Voir les résumés',
-                            onPress: () => {
-                                navigation.navigate('Main', { screen: 'Summaries' });
-                            }
-                        }
-                    ]
-                );
-            }
-        } catch (error) {
-            Alert.alert('Erreur', error.message || 'Erreur lors de la sauvegarde du résumé');
-        }
     };
 
     const getPdfViewerHTML = () => {
@@ -593,6 +571,7 @@ const CourseViewerScreen = ({ route, navigation }) => {
 
                                 const wrapper = document.createElement('div');
                                 wrapper.className = 'page-wrapper';
+                                wrapper.dataset.page = i;
                                 wrapper.appendChild(canvas);
                                 container.appendChild(wrapper);
                             }
@@ -603,6 +582,32 @@ const CourseViewerScreen = ({ route, navigation }) => {
                             document.getElementById('pdf-container').innerHTML = '<div class="error">Erreur de chargement du PDF: ' + error.message + '</div>';
                             window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'pdfError', message: error.message }));
                         }
+                    }
+
+                    // Fonction pour calculer la page courante basée sur le scroll
+                    function getCurrentPage() {
+                        const pages = document.querySelectorAll('.page-wrapper');
+                        if (pages.length === 0) return 1;
+
+                        const scrollY = window.scrollY;
+                        const viewportMiddle = scrollY + window.innerHeight / 2;
+
+                        for (let i = pages.length - 1; i >= 0; i--) {
+                            const page = pages[i];
+                            const pageTop = page.offsetTop;
+                            if (viewportMiddle >= pageTop) {
+                                return parseInt(page.dataset.page) || (i + 1);
+                            }
+                        }
+                        return 1;
+                    }
+
+                    // Fonction pour calculer le pourcentage de scroll (0-1)
+                    function getScrollPercent() {
+                        const scrollY = window.scrollY;
+                        const maxScroll = document.documentElement.scrollHeight - window.innerHeight;
+                        if (maxScroll <= 0) return 0;
+                        return Math.min(1, Math.max(0, scrollY / maxScroll));
                     }
 
                     loadPDF();
@@ -617,9 +622,33 @@ const CourseViewerScreen = ({ route, navigation }) => {
             const data = JSON.parse(event.nativeEvent.data);
             if (data.type === 'pdfLoaded') {
                 setPdfLoading(false);
+                setPdfTotalPages(data.numPages || 1);
+                // Initialiser la page courante à 1 si c'est le premier chargement
+                if (pdfCurrentPage === 0) {
+                    setPdfCurrentPage(1);
+                }
+                // Restaurer la position si on revient au mode PDF
+                if (pdfScrollPosition > 0) {
+                    setTimeout(() => {
+                        if (pdfWebViewRef.current) {
+                            pdfWebViewRef.current.injectJavaScript(`
+                                window.scrollTo(0, ${pdfScrollPosition});
+                                true;
+                            `);
+                        }
+                    }, 50);
+                }
             } else if (data.type === 'pdfError') {
                 setPdfLoading(false);
                 Alert.alert('Erreur', 'Impossible de charger le fichier original');
+            } else if (data.type === 'saveScrollPosition') {
+                setPdfScrollPosition(data.scrollY);
+                if (data.currentPage) {
+                    setPdfCurrentPage(data.currentPage);
+                }
+                if (data.scrollPercent !== undefined) {
+                    setPdfScrollPercent(data.scrollPercent);
+                }
             }
         } catch (e) {
             console.error('Error parsing PDF WebView message:', e);
@@ -801,17 +830,6 @@ const CourseViewerScreen = ({ route, navigation }) => {
                         <Text style={styles.reformatButtonText}>IA</Text>
                     )}
                 </TouchableOpacity>
-                <TouchableOpacity
-                    style={[styles.summarizeButton, summarizing && styles.summarizeButtonDisabled]}
-                    onPress={handleSummarize}
-                    disabled={summarizing}
-                >
-                    {summarizing ? (
-                        <ActivityIndicator size="small" color="#fff" />
-                    ) : (
-                        <Text style={styles.summarizeButtonText}>📝</Text>
-                    )}
-                </TouchableOpacity>
                 <TouchableOpacity style={styles.aiButton} onPress={() => {
                     setSelectionContext('');
                     setAIQuestion('');
@@ -826,7 +844,7 @@ const CourseViewerScreen = ({ route, navigation }) => {
                 <View style={styles.viewModeToggle}>
                     <TouchableOpacity
                         style={[styles.toggleButton, viewMode === 'original' && styles.toggleButtonActive]}
-                        onPress={toggleViewMode}
+                        onPress={switchToPdfMode}
                         disabled={!fileInfo}
                     >
                         <Text style={[
@@ -839,7 +857,7 @@ const CourseViewerScreen = ({ route, navigation }) => {
                     </TouchableOpacity>
                     <TouchableOpacity
                         style={[styles.toggleButton, viewMode === 'text' && styles.toggleButtonActive]}
-                        onPress={() => setViewMode('text')}
+                        onPress={switchToTextMode}
                     >
                         <Text style={[styles.toggleButtonText, viewMode === 'text' && styles.toggleButtonTextActive]}>
                             Texte
@@ -863,14 +881,6 @@ const CourseViewerScreen = ({ route, navigation }) => {
 
             {/* Vue Texte - toujours rendue mais masquée si pas active */}
             <View style={[styles.textViewWrapper, viewMode !== 'text' && styles.hiddenView]}>
-                {/* Page indicator */}
-                <View style={styles.pageIndicator}>
-                    <Text style={styles.pageText}>Page {currentPage + 1} / {pages.length}</Text>
-                    <View style={styles.progressBar}>
-                        <View style={[styles.progressFill, { width: `${((currentPage + 1) / pages.length) * 100}%` }]} />
-                    </View>
-                </View>
-
                 {/* WebView Content */}
                 <View style={styles.webViewContainer}>
                     <WebView
@@ -886,23 +896,34 @@ const CourseViewerScreen = ({ route, navigation }) => {
                     />
                 </View>
 
-                {/* Navigation */}
-                <View style={styles.navigationContainer}>
-                    <TouchableOpacity
-                        style={[styles.navButton, currentPage === 0 && styles.navButtonDisabled]}
-                        onPress={goToPreviousPage}
-                        disabled={currentPage === 0}
-                    >
-                        <Text style={styles.navButtonText}>← Précédent</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                        style={[styles.navButton, currentPage === pages.length - 1 && styles.navButtonDisabled]}
-                        onPress={goToNextPage}
-                        disabled={currentPage === pages.length - 1}
-                    >
-                        <Text style={styles.navButtonText}>Suivant →</Text>
-                    </TouchableOpacity>
-                </View>
+                {/* Navigation avec boutons */}
+                {pages.length > 1 && (
+                    <View style={styles.navigationContainer}>
+                        <View style={styles.pageNavRow}>
+                            <TouchableOpacity
+                                style={[styles.navButton, currentPage === 0 && styles.navButtonDisabled]}
+                                onPress={goToPreviousPage}
+                                disabled={currentPage === 0}
+                            >
+                                <Text style={[styles.navButtonText, currentPage === 0 && styles.navButtonTextDisabled]}>
+                                    ‹ Précédent
+                                </Text>
+                            </TouchableOpacity>
+                            <Text style={styles.pageIndicator}>
+                                {currentPage + 1} / {pages.length}
+                            </Text>
+                            <TouchableOpacity
+                                style={[styles.navButton, currentPage === pages.length - 1 && styles.navButtonDisabled]}
+                                onPress={goToNextPage}
+                                disabled={currentPage === pages.length - 1}
+                            >
+                                <Text style={[styles.navButtonText, currentPage === pages.length - 1 && styles.navButtonTextDisabled]}>
+                                    Suivant ›
+                                </Text>
+                            </TouchableOpacity>
+                        </View>
+                    </View>
+                )}
             </View>
 
             {/* Vue PDF - toujours rendue mais masquée si pas active (permet de garder le PDF en cache) */}
@@ -1137,38 +1158,6 @@ const CourseViewerScreen = ({ route, navigation }) => {
                 </KeyboardAvoidingView>
             </Modal>
 
-            {/* Summary Modal */}
-            <Modal
-                visible={showSummaryModal}
-                animationType="slide"
-                onRequestClose={() => setShowSummaryModal(false)}
-            >
-                <View style={styles.summaryModalContainer}>
-                    <View style={styles.summaryModalHeader}>
-                        <Text style={styles.summaryModalTitle}>Résumé du cours</Text>
-                        <TouchableOpacity
-                            style={styles.summaryCloseButton}
-                            onPress={() => setShowSummaryModal(false)}
-                        >
-                            <Text style={styles.summaryCloseButtonText}>✕</Text>
-                        </TouchableOpacity>
-                    </View>
-                    <ScrollView
-                        style={styles.summaryScrollView}
-                        contentContainerStyle={styles.summaryScrollContent}
-                    >
-                        <Text style={styles.summaryText}>{summaryContent}</Text>
-                    </ScrollView>
-                    <View style={styles.summaryFooter}>
-                        <TouchableOpacity style={styles.saveSummaryButton} onPress={saveSummary}>
-                            <Text style={styles.saveSummaryButtonText}>Sauvegarder le résumé</Text>
-                        </TouchableOpacity>
-                        <Text style={styles.summaryFooterText}>
-                            Le résumé sera disponible dans la section Résumés
-                        </Text>
-                    </View>
-                </View>
-            </Modal>
         </View>
     );
 };
@@ -1268,29 +1257,10 @@ const styles = StyleSheet.create({
         fontSize: 18,
         fontWeight: '600',
     },
-    pageIndicator: {
-        paddingHorizontal: 20,
-        paddingBottom: 10,
-    },
-    pageText: {
-        fontSize: 12,
-        color: '#666',
-        marginBottom: 6,
-        textAlign: 'center',
-    },
-    progressBar: {
-        height: 3,
-        backgroundColor: '#e8eaed',
-        borderRadius: 2,
-    },
-    progressFill: {
-        height: '100%',
-        backgroundColor: '#1a1a2e',
-        borderRadius: 2,
-    },
     webViewContainer: {
         flex: 1,
         marginHorizontal: 20,
+        marginTop: 10,
         marginBottom: 10,
         borderRadius: 12,
         overflow: 'hidden',
@@ -1306,26 +1276,40 @@ const styles = StyleSheet.create({
         backgroundColor: '#fff',
     },
     navigationContainer: {
-        flexDirection: 'row',
-        padding: 15,
-        paddingBottom: 30,
-        gap: 10,
+        paddingHorizontal: 20,
+        paddingVertical: 12,
+        paddingBottom: 25,
         backgroundColor: '#f8f9fa',
     },
-    navButton: {
-        flex: 1,
-        backgroundColor: '#1a1a2e',
-        paddingVertical: 14,
-        borderRadius: 10,
+    pageNavRow: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
         alignItems: 'center',
     },
+    navButton: {
+        paddingVertical: 10,
+        paddingHorizontal: 16,
+        backgroundColor: '#fff',
+        borderRadius: 8,
+        borderWidth: 1,
+        borderColor: '#e0e0e0',
+    },
     navButtonDisabled: {
-        backgroundColor: '#ccc',
+        backgroundColor: '#f5f5f5',
+        borderColor: '#eee',
     },
     navButtonText: {
-        color: '#fff',
         fontSize: 14,
         fontWeight: '600',
+        color: '#1a1a2e',
+    },
+    navButtonTextDisabled: {
+        color: '#bbb',
+    },
+    pageIndicator: {
+        fontSize: 14,
+        fontWeight: '600',
+        color: '#666',
     },
     modalOverlay: {
         flex: 1,
@@ -1603,10 +1587,13 @@ const styles = StyleSheet.create({
     },
     hiddenView: {
         position: 'absolute',
-        width: 0,
-        height: 0,
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
         opacity: 0,
-        overflow: 'hidden',
+        zIndex: -1,
+        pointerEvents: 'none',
     },
     // Edit button styles
     editButton: {
@@ -1645,88 +1632,6 @@ const styles = StyleSheet.create({
         color: '#2e7d32',
         fontSize: 12,
         fontWeight: '600',
-    },
-    summarizeButton: {
-        width: 40,
-        height: 40,
-        borderRadius: 20,
-        backgroundColor: '#1a1a2e',
-        justifyContent: 'center',
-        alignItems: 'center',
-        marginLeft: 8,
-    },
-    summarizeButtonDisabled: {
-        backgroundColor: '#9e9e9e',
-    },
-    summarizeButtonText: {
-        fontSize: 16,
-    },
-    // Summary modal styles
-    summaryModalContainer: {
-        flex: 1,
-        backgroundColor: '#f8f9fa',
-    },
-    summaryModalHeader: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        paddingTop: 55,
-        paddingBottom: 15,
-        paddingHorizontal: 20,
-        backgroundColor: '#fff',
-        borderBottomWidth: 1,
-        borderBottomColor: '#e0e0e0',
-    },
-    summaryModalTitle: {
-        fontSize: 18,
-        fontWeight: '700',
-        color: '#1a1a2e',
-    },
-    summaryCloseButton: {
-        width: 36,
-        height: 36,
-        borderRadius: 18,
-        backgroundColor: '#f0f0f0',
-        justifyContent: 'center',
-        alignItems: 'center',
-    },
-    summaryCloseButtonText: {
-        fontSize: 18,
-        color: '#666',
-    },
-    summaryScrollView: {
-        flex: 1,
-    },
-    summaryScrollContent: {
-        padding: 20,
-    },
-    summaryText: {
-        fontSize: 15,
-        lineHeight: 24,
-        color: '#333',
-    },
-    summaryFooter: {
-        padding: 15,
-        backgroundColor: '#e8f5e9',
-        borderTopWidth: 1,
-        borderTopColor: '#c8e6c9',
-    },
-    saveSummaryButton: {
-        backgroundColor: '#1a1a2e',
-        paddingVertical: 14,
-        borderRadius: 10,
-        alignItems: 'center',
-        marginBottom: 10,
-    },
-    saveSummaryButtonText: {
-        color: '#fff',
-        fontSize: 16,
-        fontWeight: '600',
-    },
-    summaryFooterText: {
-        fontSize: 12,
-        color: '#2e7d32',
-        textAlign: 'center',
     },
     // Edit modal styles
     editModalContainer: {

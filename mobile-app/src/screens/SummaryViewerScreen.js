@@ -90,6 +90,7 @@ const SummaryViewerScreen = ({ route, navigation }) => {
                 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
                 <style>
                     * {
+                        -webkit-touch-callout: default;
                         -webkit-user-select: text;
                         user-select: text;
                     }
@@ -99,6 +100,7 @@ const SummaryViewerScreen = ({ route, navigation }) => {
                         line-height: 1.7;
                         color: #333;
                         padding: 16px;
+                        padding-bottom: 80px;
                         margin: 0;
                         background-color: #fff;
                     }
@@ -108,21 +110,75 @@ const SummaryViewerScreen = ({ route, navigation }) => {
                     ::selection {
                         background-color: #b3d4fc;
                     }
+                    .highlight-btn {
+                        position: fixed;
+                        bottom: 20px;
+                        left: 50%;
+                        transform: translateX(-50%);
+                        background-color: #1a1a2e;
+                        color: white;
+                        padding: 12px 24px;
+                        border-radius: 25px;
+                        font-size: 14px;
+                        font-weight: 600;
+                        display: none;
+                        z-index: 1000;
+                        box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+                        cursor: pointer;
+                    }
+                    .highlight-btn.visible {
+                        display: block;
+                    }
                 </style>
             </head>
             <body>
                 ${processedContent}
+                <div id="highlightBtn" class="highlight-btn" ontouchend="sendSelection()">
+                    Surligner / Demander a l'IA
+                </div>
                 <script>
+                    let selectedText = '';
+
                     document.addEventListener('selectionchange', function() {
                         const selection = window.getSelection();
-                        const selectedText = selection.toString().trim();
+                        const text = selection.toString().trim();
+                        const btn = document.getElementById('highlightBtn');
+
+                        if (text.length > 0) {
+                            selectedText = text;
+                            btn.classList.add('visible');
+                        } else {
+                            btn.classList.remove('visible');
+                        }
+                    });
+
+                    function sendSelection() {
                         if (selectedText.length > 0) {
                             window.ReactNativeWebView.postMessage(JSON.stringify({
                                 type: 'selection',
                                 text: selectedText
                             }));
                         }
-                    });
+                    }
+
+                    function highlightSelection(color) {
+                        const selection = window.getSelection();
+                        if (selection.rangeCount > 0) {
+                            const range = selection.getRangeAt(0);
+                            const span = document.createElement('span');
+                            span.style.backgroundColor = color;
+                            span.style.padding = '2px 0';
+                            try {
+                                range.surroundContents(span);
+                            } catch(e) {
+                                const fragment = range.extractContents();
+                                span.appendChild(fragment);
+                                range.insertNode(span);
+                            }
+                            selection.removeAllRanges();
+                            document.getElementById('highlightBtn').classList.remove('visible');
+                        }
+                    }
                 </script>
             </body>
             </html>
@@ -143,7 +199,16 @@ const SummaryViewerScreen = ({ route, navigation }) => {
 
     const addHighlight = (color) => {
         if (selectedText) {
-            setHighlights(prev => [...prev, { text: selectedText, color }]);
+            setHighlights(prev => [...prev, { text: selectedText, color: color.color }]);
+
+            // Injecter le surlignage dans la WebView
+            if (webViewRef.current) {
+                webViewRef.current.injectJavaScript(`
+                    highlightSelection('${color.color}');
+                    true;
+                `);
+            }
+
             setSelectedText('');
             setShowColorPicker(false);
         }
@@ -344,7 +409,7 @@ const SummaryViewerScreen = ({ route, navigation }) => {
                                 <TouchableOpacity
                                     key={item.color}
                                     style={[styles.colorOption, { backgroundColor: item.color }]}
-                                    onPress={() => addHighlight(item.color)}
+                                    onPress={() => addHighlight(item)}
                                 >
                                     <Text style={styles.colorOptionText}>{item.name}</Text>
                                 </TouchableOpacity>

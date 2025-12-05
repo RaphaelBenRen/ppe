@@ -3,7 +3,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 // Configuration de l'API
 // Mode dev: IP locale | Mode prod: URL Render
 const USE_LOCAL = true; // Passer à false pour utiliser Render
-const LOCAL_IP = '192.168.1.78';
+const LOCAL_IP = '10.5.22.31';
 const API_URL = USE_LOCAL
     ? `http://${LOCAL_IP}:5001/api`
     : 'https://ppe-z2u3.onrender.com/api';

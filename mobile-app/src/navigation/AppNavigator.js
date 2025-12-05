@@ -35,7 +35,7 @@ const TabIcon = ({ name, focused, color }) => {
         home: '⌂',
         qcm: '✓',
         flash: '↯',
-        summary: '📝',
+        summary: '≡',
     };
     return (
         <Text style={{

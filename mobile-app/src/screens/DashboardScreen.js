@@ -15,7 +15,7 @@ import {
 import * as DocumentPicker from 'expo-document-picker';
 import { useAuth } from '../context/AuthContext';
 import { useData } from '../context/DataContext';
-import { coursesAPI, qcmAPI, flashcardsAPI } from '../utils/api';
+import { coursesAPI, qcmAPI, flashcardsAPI, summariesAPI } from '../utils/api';
 
 const DashboardScreen = ({ navigation }) => {
     const { user } = useAuth();
@@ -42,6 +42,9 @@ const DashboardScreen = ({ navigation }) => {
         matiere: 'Informatique',
         annee_cible: 'Ing3',
     });
+    const [showSummaryModal, setShowSummaryModal] = useState(false);
+    const [summaryContent, setSummaryContent] = useState('');
+    const [summaryCourseData, setSummaryCourseData] = useState(null);
 
     const onRefresh = async () => {
         setRefreshing(true);
@@ -212,6 +215,66 @@ const DashboardScreen = ({ navigation }) => {
         }
     };
 
+    const handleSummarizeCourse = async (course) => {
+        if (!user?.has_ai_access) {
+            Alert.alert(
+                'Accès restreint',
+                'Pour générer un résumé par IA, vous devez entrer un code d\'accès dans les paramètres.',
+                [
+                    { text: 'Annuler', style: 'cancel' },
+                    { text: 'Paramètres', onPress: () => navigation.navigate('Settings') }
+                ]
+            );
+            return;
+        }
+
+        setGenerating(true);
+        setSummaryCourseData(course);
+        try {
+            const response = await coursesAPI.summarizeCourse(course.id);
+            if (response.success && response.data?.summary) {
+                setSummaryContent(response.data.summary);
+                setShowSummaryModal(true);
+            }
+        } catch (error) {
+            Alert.alert('Erreur', error.message || 'Erreur lors de la génération du résumé');
+        } finally {
+            setGenerating(false);
+        }
+    };
+
+    const saveSummary = async () => {
+        if (!summaryCourseData) return;
+
+        try {
+            const response = await summariesAPI.createSummary({
+                course_id: summaryCourseData.id,
+                titre: `Résumé - ${summaryCourseData.titre}`,
+                matiere: summaryCourseData.matiere,
+                content: summaryContent,
+                original_course_titre: summaryCourseData.titre,
+            });
+            if (response.success) {
+                setShowSummaryModal(false);
+                setSummaryContent('');
+                setSummaryCourseData(null);
+                Alert.alert(
+                    'Résumé sauvegardé',
+                    'Votre résumé a été enregistré. Vous pouvez le retrouver dans la section Résumés.',
+                    [
+                        { text: 'Fermer', style: 'cancel' },
+                        {
+                            text: 'Voir les résumés',
+                            onPress: () => navigation.navigate('Main', { screen: 'Summaries' })
+                        }
+                    ]
+                );
+            }
+        } catch (error) {
+            Alert.alert('Erreur', error.message || 'Erreur lors de la sauvegarde du résumé');
+        }
+    };
+
     const handleDeleteCourse = async (courseId) => {
         Alert.alert(
             'Supprimer ce cours',
@@ -246,6 +309,15 @@ const DashboardScreen = ({ navigation }) => {
 
     const renderCourse = ({ item }) => (
         <View style={styles.courseCard}>
+            {/* Bouton de suppression discret en haut à droite */}
+            <TouchableOpacity
+                style={styles.deleteButton}
+                onPress={() => handleDeleteCourse(item.id)}
+                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            >
+                <Text style={styles.deleteButtonText}>×</Text>
+            </TouchableOpacity>
+
             <TouchableOpacity
                 style={styles.courseMain}
                 onPress={() => handleOpenCourse(item)}
@@ -262,9 +334,14 @@ const DashboardScreen = ({ navigation }) => {
                         {item.matiere} • {item.annee_cible}
                     </Text>
                 </View>
-                <Text style={styles.courseArrow}>›</Text>
             </TouchableOpacity>
             <View style={styles.courseActions}>
+                <TouchableOpacity
+                    style={styles.actionBtn}
+                    onPress={() => handleSummarizeCourse(item)}
+                >
+                    <Text style={styles.actionBtnText}>Résumé</Text>
+                </TouchableOpacity>
                 <TouchableOpacity
                     style={styles.actionBtn}
                     onPress={() => handleGenerateQCM(item)}
@@ -276,12 +353,6 @@ const DashboardScreen = ({ navigation }) => {
                     onPress={() => handleGenerateFlashcards(item)}
                 >
                     <Text style={styles.actionBtnText}>Flashcards</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                    style={[styles.actionBtn, styles.deleteBtn]}
-                    onPress={() => handleDeleteCourse(item.id)}
-                >
-                    <Text style={styles.deleteBtnText}>Suppr.</Text>
                 </TouchableOpacity>
             </View>
         </View>
@@ -666,6 +737,43 @@ const DashboardScreen = ({ navigation }) => {
                     </View>
                 </View>
             </Modal>
+
+            {/* Summary Modal */}
+            <Modal
+                visible={showSummaryModal}
+                animationType="slide"
+                onRequestClose={() => setShowSummaryModal(false)}
+            >
+                <View style={styles.summaryModalContainer}>
+                    <View style={styles.summaryModalHeader}>
+                        <Text style={styles.summaryModalTitle}>Résumé du cours</Text>
+                        <TouchableOpacity
+                            style={styles.summaryCloseButton}
+                            onPress={() => {
+                                setShowSummaryModal(false);
+                                setSummaryContent('');
+                                setSummaryCourseData(null);
+                            }}
+                        >
+                            <Text style={styles.summaryCloseButtonText}>✕</Text>
+                        </TouchableOpacity>
+                    </View>
+                    <ScrollView
+                        style={styles.summaryScrollView}
+                        contentContainerStyle={styles.summaryScrollContent}
+                    >
+                        <Text style={styles.summaryText}>{summaryContent}</Text>
+                    </ScrollView>
+                    <View style={styles.summaryFooter}>
+                        <TouchableOpacity style={styles.saveSummaryButton} onPress={saveSummary}>
+                            <Text style={styles.saveSummaryButtonText}>Sauvegarder le résumé</Text>
+                        </TouchableOpacity>
+                        <Text style={styles.summaryFooterText}>
+                            Le résumé sera disponible dans la section Résumés
+                        </Text>
+                    </View>
+                </View>
+            </Modal>
         </View>
     );
 };
@@ -834,17 +942,37 @@ const styles = StyleSheet.create({
     courseCard: {
         backgroundColor: '#fff',
         borderRadius: 14,
-        marginBottom: 12,
         shadowColor: '#000',
         shadowOffset: { width: 0, height: 1 },
         shadowOpacity: 0.04,
         shadowRadius: 6,
         elevation: 2,
+        marginBottom: 12,
+        position: 'relative',
+    },
+    deleteButton: {
+        position: 'absolute',
+        top: 8,
+        right: 8,
+        width: 24,
+        height: 24,
+        borderRadius: 12,
+        backgroundColor: '#f0f0f0',
+        justifyContent: 'center',
+        alignItems: 'center',
+        zIndex: 10,
+    },
+    deleteButtonText: {
+        fontSize: 18,
+        color: '#999',
+        fontWeight: '300',
+        lineHeight: 20,
     },
     courseMain: {
         flexDirection: 'row',
         alignItems: 'center',
         padding: 16,
+        paddingRight: 40,
     },
     courseIcon: {
         width: 44,
@@ -871,11 +999,6 @@ const styles = StyleSheet.create({
         color: '#8a8a8a',
         marginTop: 3,
     },
-    courseArrow: {
-        fontSize: 24,
-        color: '#c0c0c0',
-        fontWeight: '300',
-    },
     courseActions: {
         flexDirection: 'row',
         borderTopWidth: 1,
@@ -894,15 +1017,6 @@ const styles = StyleSheet.create({
         fontSize: 12,
         fontWeight: '600',
         color: '#1a1a2e',
-    },
-    deleteBtn: {
-        backgroundColor: '#fff5f5',
-        flex: 0.6,
-    },
-    deleteBtnText: {
-        fontSize: 12,
-        fontWeight: '600',
-        color: '#e53e3e',
     },
     modalOverlay: {
         flex: 1,
@@ -1016,6 +1130,73 @@ const styles = StyleSheet.create({
         fontSize: 15,
         fontWeight: '600',
         color: '#fff',
+    },
+    // Summary modal styles
+    summaryModalContainer: {
+        flex: 1,
+        backgroundColor: '#f8f9fa',
+    },
+    summaryModalHeader: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        paddingTop: 55,
+        paddingBottom: 15,
+        paddingHorizontal: 20,
+        backgroundColor: '#fff',
+        borderBottomWidth: 1,
+        borderBottomColor: '#e0e0e0',
+    },
+    summaryModalTitle: {
+        fontSize: 18,
+        fontWeight: '700',
+        color: '#1a1a2e',
+    },
+    summaryCloseButton: {
+        width: 36,
+        height: 36,
+        borderRadius: 18,
+        backgroundColor: '#f0f0f0',
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    summaryCloseButtonText: {
+        fontSize: 18,
+        color: '#666',
+    },
+    summaryScrollView: {
+        flex: 1,
+    },
+    summaryScrollContent: {
+        padding: 20,
+    },
+    summaryText: {
+        fontSize: 15,
+        lineHeight: 24,
+        color: '#333',
+    },
+    summaryFooter: {
+        padding: 15,
+        backgroundColor: '#e8f5e9',
+        borderTopWidth: 1,
+        borderTopColor: '#c8e6c9',
+    },
+    saveSummaryButton: {
+        backgroundColor: '#1a1a2e',
+        paddingVertical: 14,
+        borderRadius: 10,
+        alignItems: 'center',
+        marginBottom: 10,
+    },
+    saveSummaryButtonText: {
+        color: '#fff',
+        fontSize: 16,
+        fontWeight: '600',
+    },
+    summaryFooterText: {
+        fontSize: 12,
+        color: '#2e7d32',
+        textAlign: 'center',
     },
 });
 
